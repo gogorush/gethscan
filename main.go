@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/anyswap/CrossChain-Bridge/cmd/utils"
-	"github.com/jowenshaw/gethscan/params"
-	"github.com/jowenshaw/gethscan/scanner"
+	"github.com/weijun-sh/gethscan/params"
+	"github.com/weijun-sh/gethscan/scanner"
 	"github.com/urfave/cli/v2"
 )
 

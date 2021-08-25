@@ -22,7 +22,23 @@ const (
 var (
 	configFile string
 	scanConfig = &ScanConfig{}
+	mongodbConfig = &MongoDBConfig{}
 )
+
+type Config struct {
+       MongoDB *MongoDBConfig
+       Tokens  []*TokenConfig
+}
+
+// MongoDBConfig mongodb config
+type MongoDBConfig struct {
+       DBURL      string
+       DBName     string
+       UserName   string `json:"-"`
+       Password   string `json:"-"`
+       Enable     bool
+       BlockChain string
+}
 
 // ScanConfig scan config
 type ScanConfig struct {
@@ -47,6 +63,11 @@ type TokenConfig struct {
 	RouterContract string `toml:",omitempty" json:",omitempty"`
 }
 
+// GetMongodbConfig get mongodb config
+func GetMongodbConfig() *MongoDBConfig {
+       return mongodbConfig
+}
+
 // IsNativeToken is native token
 func (c *TokenConfig) IsNativeToken() bool {
 	return c.TokenAddress == "native"
@@ -64,7 +85,7 @@ func LoadConfig(filePath string) *ScanConfig {
 		log.Fatalf("LoadConfig error: config file '%v' not exist", filePath)
 	}
 
-	config := &ScanConfig{}
+	config := &Config{}
 	if _, err := toml.DecodeFile(filePath, &config); err != nil {
 		log.Fatalf("LoadConfig error (toml DecodeFile): %v", err)
 	}
@@ -77,12 +98,14 @@ func LoadConfig(filePath string) *ScanConfig {
 	}
 	log.Println("LoadConfig finished.", string(bs))
 
-	if err := config.CheckConfig(); err != nil {
+       mongodbConfig = config.MongoDB
+       scanConfig.Tokens = config.Tokens
+
+       if err := scanConfig.CheckConfig(); err != nil {
 		log.Fatalf("LoadConfig Check config failed. %v", err)
 	}
 
 	configFile = filePath // init config file path
-	scanConfig = config   // init scan config
 	return scanConfig
 }
 
@@ -94,18 +117,18 @@ func ReloadConfig() {
 		return
 	}
 
-	config := &ScanConfig{}
+	config := &Config{}
 	if _, err := toml.DecodeFile(configFile, &config); err != nil {
 		log.Errorf("ReloadConfig error (toml DecodeFile): %v", err)
 		return
 	}
 
-	if err := config.CheckConfig(); err != nil {
+       scanConfig.Tokens = config.Tokens
+       if err := scanConfig.CheckConfig(); err != nil {
 		log.Errorf("ReloadConfig Check config failed. %v", err)
 		return
 	}
 	log.Println("ReloadConfig success.")
-	scanConfig = config // reassign scan config
 }
 
 // CheckConfig check scan config

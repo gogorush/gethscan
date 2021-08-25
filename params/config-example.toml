@@ -1,3 +1,12 @@
+# modgodb database connection config
+[MongoDB]
+DBURL = "localhost:27017"
+DBName = "post"
+UserName = "poster"
+Password = "123456"
+Enable = true
+BlockChain = "matic"
+
 [[Tokens]]
 TxType = "swapin"
 PairID = "eth"
@@ -43,4 +52,4 @@ TxType = "routerswap"
 ChainID = "1"
 SwapServer = "http://127.0.0.1:55556/rpc"
 RouterContract = "0x6b7a87899490ece95443e979ca9485cbe7e71522"
-Whitelist = []
+Whitelist = [""]
