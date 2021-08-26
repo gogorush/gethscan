@@ -479,7 +479,7 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 
 func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
 	var needCached bool
-	var needPending bool
+	var needPending bool = true
 	for i := 0; i < scanner.rpcRetryCount; i++ {
 		err := rpcPost(swap)
 		if err == nil {
@@ -621,7 +621,7 @@ func (scanner *ethSwapScanner) repostSwap(swap *swapPost) bool {
 		case strings.Contains(err.Error(), rpcQueryErrKeywords):
 		case strings.Contains(err.Error(), httpTimeoutKeywords):
 		default:
-			return true
+			return false
 		}
 		time.Sleep(scanner.rpcInterval)
 	}
@@ -829,7 +829,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
                        sp.rpcMethod = swap.RpcMethod
                        sp.swapServer = swap.SwapServer
                        ok := scanner.repostSwap(&sp)
-                       if ok == false {
+                       if ok == true {
                                mongodb.UpdateSwapPending(swap)
                        } else {
                                r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Txid))
