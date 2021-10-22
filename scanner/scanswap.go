@@ -85,7 +85,8 @@ scan cross chain swaps
 const (
 	postSwapSuccessResult   = "success"
 	bridgeSwapExistKeywords = "mgoError: Item is duplicate"
-	routerSwapExistResult   = "alreday registered"
+	routerSwapExistResult   = "already registered"
+	routerSwapExistResultTmp   = "alreday registered"
 	httpTimeoutKeywords     = "Client.Timeout exceeded while awaiting headers"
 	rpcQueryErrKeywords     = "rpc query error"
 	errDepositLogNotFountorRemoved = "return error: json-rpc error -32099, verify swap failed! deposit log not found or removed"
@@ -483,12 +484,10 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 
 func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
 	var needCached bool
-	var needPending bool = true
+	var needPending bool
 	for i := 0; i < scanner.rpcRetryCount; i++ {
 		err := rpcPost(swap)
 		if err == nil {
-			needCached = false
-			needPending = false
 			break
 		}
 		if errors.Is(err, tokens.ErrTxNotFound) ||
@@ -606,7 +605,7 @@ func rpcPost(swap *swapPost) error {
 	switch status {
 	case postSwapSuccessResult:
 		log.Info("post router swap success", "swap", args)
-	case routerSwapExistResult:
+	case routerSwapExistResult, routerSwapExistResultTmp:
 		log.Info("post router swap already exist", "swap", args)
 	default:
 		err = errors.New(status)
