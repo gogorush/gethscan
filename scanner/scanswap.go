@@ -31,10 +31,15 @@ var (
 		Usage: "scan transaction receipt instead of transaction",
 	}
 
+	InitSyncdBlockNumberFlag = &cli.BoolFlag{
+		Name:  "initsync",
+		Usage: "init synced block number to mongodb",
+	}
+
 	startHeightFlag = &cli.Int64Flag{
 		Name:  "start",
 		Usage: "start height (start inclusive)",
-		Value: -200,
+		Value: 0,
 	}
 
 	timeoutFlag = &cli.Uint64Flag{
@@ -56,6 +61,7 @@ scan cross chain swaps
 			utils.ConfigFileFlag,
 			utils.GatewayFlag,
 			scanReceiptFlag,
+			InitSyncdBlockNumberFlag,
 			startHeightFlag,
 			utils.EndHeightFlag,
 			utils.StableHeightFlag,
@@ -97,6 +103,9 @@ var startHeightArgument int64
 var (
        chain         string
        mongodbEnable bool
+	syncedNumber uint64
+	syncedCount uint64
+	syncdCount2Mongodb uint64 = 10
 )
 
 type ethSwapScanner struct {
@@ -163,18 +172,40 @@ func scanSwap(ctx *cli.Context) error {
 		"timeout", scanner.processBlockTimeout,
 	)
 
+	scanner.initClient()
+
        //mongo
        dbConfig := params.GetMongodbConfig()
        chain = dbConfig.BlockChain
        mongodbEnable = dbConfig.Enable
        if mongodbEnable {
                InitMongodb()
+		if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
+			lb := scanner.loopGetLatestBlockNumber()
+			err := mongodb.InitSyncedBlockNumber(chain, lb)
+			fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
+		}
                go scanner.loopSwapPending()
        }
 
-	scanner.initClient()
 	scanner.run()
 	return nil
+}
+
+func getSyncdBlockNumber() uint64 {
+	var blockNumber uint64
+	var err error
+	for i := 0; i < 5; i++ { // with retry
+		blockNumber, err = mongodb.FindSyncedBlockNumber(chain)
+		if err == nil {
+			syncedCount = 0
+			syncedNumber = blockNumber
+			log.Info("getSyncdBlockNumber", "syncedNumber", syncedNumber)
+			return blockNumber
+		}
+	}
+	log.Fatal("getSyncdBlockNumber failed", "err", err)
+	return 0
 }
 
 func (scanner *ethSwapScanner) initClient() {
@@ -202,8 +233,9 @@ func (scanner *ethSwapScanner) run() {
 
 	wend := scanner.endHeight
 	if wend == 0 {
-		wend = scanner.loopGetLatestBlockNumber()
+		wend = getSyncdBlockNumber()
 	}
+
 	if startHeightArgument != 0 {
 		var start uint64
 		if startHeightArgument > 0 {
@@ -266,11 +298,27 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 		latest := scanner.loopGetLatestBlockNumber()
 		for h := from; h <= latest; h++ {
 			scanner.scanBlock(0, h, true)
+			updateSyncdBlockNumber(h)
 		}
 		if from+stable < latest {
 			from = latest - stable
 		}
 		time.Sleep(1 * time.Second)
+	}
+}
+
+func updateSyncdBlockNumber(number uint64) {
+	if number == syncedNumber + 1 {
+		syncedCount += 1
+		syncedNumber = number
+	}
+	if syncedCount >= syncdCount2Mongodb {
+		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
+		if err == nil {
+			syncedCount = 0
+		} else {
+			log.Warn("UpdateSyncedBlockNumber failed", "err", err, "expect number", syncedNumber)
+		}
 	}
 }
 

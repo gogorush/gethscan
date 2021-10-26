@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"errors"
 	"time"
 
 	"github.com/anyswap/ANYToken-distribution/log"
@@ -133,3 +134,40 @@ func UpdateSwapPending(swap *MgoSwap) {
 	swap.Timestamp = uint64(time.Now().Unix())
 	AddSwap(swap, false)
 }
+
+func FindSyncedBlockNumber(chain string) (uint64, error) {
+	var res SyncedBlock
+	err := collectionSyncedBlock.Find(bson.M{"chain": chain}).One(&res)
+	if err != nil {
+		return 0, errors.New("mgo find failed")
+	}
+	return res.BlockNumber, nil
+}
+
+func InsertSyncedBlockNumber(chain string, number uint64) error {
+	sb := SyncedBlock{}
+	sb.Id = chain
+	sb.Chain = chain
+	sb.BlockNumber = number
+	return collectionSyncedBlock.Insert(&sb)
+}
+
+func InitSyncedBlockNumber(chain string, number uint64) error {
+	_, err := FindSyncedBlockNumber(chain)
+	if err == nil {
+		return UpdateSyncedBlockNumber(chain, number)
+	}
+	sb := SyncedBlock{}
+	sb.Id = chain
+	sb.Chain = chain
+	sb.BlockNumber = number
+	return collectionSyncedBlock.Insert(&sb)
+}
+
+func UpdateSyncedBlockNumber(chain string, number uint64) error {
+	selector := bson.M{"chain": chain}
+	data := bson.M{"$set": bson.M{"blocknumber": number}}
+	err := collectionSyncedBlock.Update(selector, data)
+	return err
+}
+
