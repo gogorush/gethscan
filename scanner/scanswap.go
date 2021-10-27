@@ -39,7 +39,7 @@ var (
 	startHeightFlag = &cli.Int64Flag{
 		Name:  "start",
 		Usage: "start height (start inclusive)",
-		Value: 0,
+		Value: -1,
 	}
 
 	timeoutFlag = &cli.Uint64Flag{
@@ -105,7 +105,7 @@ var (
        mongodbEnable bool
 	syncedNumber uint64
 	syncedCount uint64
-	syncdCount2Mongodb uint64 = 10
+	syncdCount2Mongodb uint64 = 100
 )
 
 type ethSwapScanner struct {
@@ -174,19 +174,22 @@ func scanSwap(ctx *cli.Context) error {
 
 	scanner.initClient()
 
+	bcConfig := params.GetBlockChainConfig()
+       chain = bcConfig.Chain
+	if bcConfig.SyncNumber > 0 {
+		syncdCount2Mongodb = bcConfig.SyncNumber
+	}
+
        //mongo
-       dbConfig := params.GetMongodbConfig()
-       chain = dbConfig.BlockChain
-       mongodbEnable = dbConfig.Enable
-       if mongodbEnable {
-               InitMongodb()
-		if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
-			lb := scanner.loopGetLatestBlockNumber()
-			err := mongodb.InitSyncedBlockNumber(chain, lb)
-			fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
-		}
-               go scanner.loopSwapPending()
-       }
+       InitMongodb()
+	if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
+		lb := scanner.loopGetLatestBlockNumber()
+		err := mongodb.InitSyncedBlockNumber(chain, lb)
+		fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
+	}
+       go scanner.loopSwapPending()
+	syncedCount = 0
+	syncedNumber = getSyncdBlockNumber()
 
 	scanner.run()
 	return nil
@@ -198,9 +201,7 @@ func getSyncdBlockNumber() uint64 {
 	for i := 0; i < 5; i++ { // with retry
 		blockNumber, err = mongodb.FindSyncedBlockNumber(chain)
 		if err == nil {
-			syncedCount = 0
-			syncedNumber = blockNumber
-			log.Info("getSyncdBlockNumber", "syncedNumber", syncedNumber)
+			log.Info("getSyncdBlockNumber", "syncedNumber", blockNumber)
 			return blockNumber
 		}
 	}
@@ -233,9 +234,15 @@ func (scanner *ethSwapScanner) run() {
 
 	wend := scanner.endHeight
 	if wend == 0 {
-		wend = getSyncdBlockNumber()
+		wend = scanner.loopGetLatestBlockNumber()
+		if uint64(startHeightArgument) > syncedNumber {
+			startHeightArgument = int64(syncedNumber)
+		}
 	}
 
+	if startHeightArgument < 0 {
+		startHeightArgument = int64(syncedNumber)
+	}
 	if startHeightArgument != 0 {
 		var start uint64
 		if startHeightArgument > 0 {
@@ -244,6 +251,7 @@ func (scanner *ethSwapScanner) run() {
 			start = wend - uint64(-startHeightArgument)
 		}
 		scanner.doScanRangeJob(start, wend)
+		rewriteSyncdBlockNumber(wend)
 	}
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
@@ -275,9 +283,9 @@ func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
 		wg.Add(1)
 		go scanner.scanRange(i+1, from, to, wg)
 	}
-	if scanner.endHeight != 0 {
+	//if scanner.endHeight != 0 {
 		wg.Wait()
-	}
+	//}
 }
 
 func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGroup) {
@@ -307,6 +315,18 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	}
 }
 
+func rewriteSyncdBlockNumber(number uint64) {
+	syncedNumber = number
+	syncedCount = 0
+	err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
+	if err == nil {
+		log.Info("rewriteSyncdBlockNumber", "block number", syncedNumber)
+		syncedCount = 0
+	} else {
+		log.Warn("rewriteSyncdBlockNumber failed", "err", err, "expect number", syncedNumber)
+	}
+}
+
 func updateSyncdBlockNumber(number uint64) {
 	if number == syncedNumber + 1 {
 		syncedCount += 1
@@ -315,6 +335,7 @@ func updateSyncdBlockNumber(number uint64) {
 	if syncedCount >= syncdCount2Mongodb {
 		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
 		if err == nil {
+			log.Info("updateSyncdBlockNumber", "height", syncedNumber)
 			syncedCount = 0
 		} else {
 			log.Warn("UpdateSyncedBlockNumber failed", "err", err, "expect number", syncedNumber)
@@ -895,7 +916,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
                                mongodb.UpdateSwapPending(swap)
                        } else {
                                r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Txid))
-                               if err != nil || (err == nil && r.Status != uint64(0)) {
+                               if err != nil || (err == nil && r.Status != uint64(1)) {
                                        log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Txid)
                                        mongodb.RemoveSwapPending(swap)
                                        mongodb.AddSwapDeleted(swap, false)

@@ -24,10 +24,12 @@ var (
 	configFile string
 	scanConfig = &ScanConfig{}
 	mongodbConfig = &MongoDBConfig{}
+	blockchainConfig = &BlockChainConfig{}
 )
 
 type Config struct {
        MongoDB *MongoDBConfig
+	BlockChain *BlockChainConfig
        Tokens  []*TokenConfig
 }
 
@@ -37,8 +39,11 @@ type MongoDBConfig struct {
        DBName     string
        UserName   string `json:"-"`
        Password   string `json:"-"`
-       Enable     bool
-       BlockChain string
+}
+
+type BlockChainConfig struct {
+	Chain string
+	SyncNumber uint64
 }
 
 // ScanConfig scan config
@@ -67,6 +72,11 @@ type TokenConfig struct {
 // GetMongodbConfig get mongodb config
 func GetMongodbConfig() *MongoDBConfig {
        return mongodbConfig
+}
+
+// GetBlockChainConfig get blockchain config
+func GetBlockChainConfig() *BlockChainConfig {
+       return blockchainConfig
 }
 
 // IsNativeToken is native token
@@ -100,6 +110,7 @@ func LoadConfig(filePath string) *ScanConfig {
 	log.Println("LoadConfig finished.", string(bs))
 
        mongodbConfig = config.MongoDB
+	blockchainConfig = config.BlockChain
        scanConfig.Tokens = config.Tokens
 
        if err := scanConfig.CheckConfig(); err != nil {
