@@ -251,7 +251,9 @@ func (scanner *ethSwapScanner) run() {
 			start = wend - uint64(-startHeightArgument)
 		}
 		scanner.doScanRangeJob(start, wend)
-		rewriteSyncdBlockNumber(wend)
+		if scanner.endHeight == 0 {
+			rewriteSyncdBlockNumber(wend)
+		}
 	}
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
