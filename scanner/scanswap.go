@@ -186,15 +186,15 @@ func scanSwap(ctx *cli.Context) error {
 	if mongodbEnable {
 		InitMongodb()
 		if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
-			lb := scanner.loopGetLatestBlockNumber() - 1
+			lb := scanner.loopGetLatestBlockNumber() - 10
 			err := mongodb.InitSyncedBlockNumber(chain, lb)
 			fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
 		}
 		go scanner.loopSwapPending()
 		syncedCount = 0
-		syncedNumber = getSyncdBlockNumber()
+		syncedNumber = getSyncdBlockNumber() - 10
 	} else {
-		syncedNumber = scanner.loopGetLatestBlockNumber() - 1
+		syncedNumber = scanner.loopGetLatestBlockNumber() - 10
 	}
 
 	scanner.run()
