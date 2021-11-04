@@ -39,6 +39,7 @@ type MongoDBConfig struct {
        DBName     string
        UserName   string `json:"-"`
        Password   string `json:"-"`
+	Enable    bool
 }
 
 type BlockChainConfig struct {

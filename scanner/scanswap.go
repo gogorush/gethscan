@@ -102,7 +102,7 @@ var startHeightArgument int64
 
 var (
        chain         string
-       mongodbEnable bool
+       mongodbEnable bool = true
 	syncedNumber uint64
 	syncedCount uint64
 	syncdCount2Mongodb uint64 = 100
@@ -181,15 +181,21 @@ func scanSwap(ctx *cli.Context) error {
 	}
 
        //mongo
-       InitMongodb()
-	if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
-		lb := scanner.loopGetLatestBlockNumber()
-		err := mongodb.InitSyncedBlockNumber(chain, lb)
-		fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
+	mgoConfig := params.GetMongodbConfig()
+	mongodbEnable = mgoConfig.Enable
+	if mongodbEnable {
+		InitMongodb()
+		if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
+			lb := scanner.loopGetLatestBlockNumber() - 1
+			err := mongodb.InitSyncedBlockNumber(chain, lb)
+			fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
+		}
+		go scanner.loopSwapPending()
+		syncedCount = 0
+		syncedNumber = getSyncdBlockNumber()
+	} else {
+		syncedNumber = scanner.loopGetLatestBlockNumber() - 1
 	}
-       go scanner.loopSwapPending()
-	syncedCount = 0
-	syncedNumber = getSyncdBlockNumber()
 
 	scanner.run()
 	return nil
@@ -251,7 +257,7 @@ func (scanner *ethSwapScanner) run() {
 			start = wend - uint64(-startHeightArgument)
 		}
 		scanner.doScanRangeJob(start, wend)
-		if scanner.endHeight == 0 {
+		if scanner.endHeight == 0 && mongodbEnable {
 			rewriteSyncdBlockNumber(wend)
 		}
 	}
@@ -308,7 +314,9 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 		latest := scanner.loopGetLatestBlockNumber()
 		for h := from; h <= latest; h++ {
 			scanner.scanBlock(0, h, true)
-			updateSyncdBlockNumber(h)
+			if mongodbEnable {
+				updateSyncdBlockNumber(h)
+			}
 		}
 		if from+stable < latest {
 			from = latest - stable
