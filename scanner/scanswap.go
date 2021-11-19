@@ -704,6 +704,7 @@ func (scanner *ethSwapScanner) repostSwap(swap *swapPost) bool {
 		switch {
 		case strings.Contains(err.Error(), rpcQueryErrKeywords):
 		case strings.Contains(err.Error(), httpTimeoutKeywords):
+		case strings.Contains(err.Error(), errConnectionRefused):
 		default:
 			return false
 		}
