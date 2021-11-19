@@ -94,6 +94,7 @@ const (
 	routerSwapExistResult   = "already registered"
 	routerSwapExistResultTmp   = "alreday registered"
 	httpTimeoutKeywords     = "Client.Timeout exceeded while awaiting headers"
+	errConnectionRefused    = "connect: connection refused"
 	rpcQueryErrKeywords     = "rpc query error"
 	errDepositLogNotFountorRemoved = "return error: json-rpc error -32099, verify swap failed! deposit log not found or removed"
 )
@@ -570,7 +571,8 @@ func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
 			break
 		}
 		if errors.Is(err, tokens.ErrTxNotFound) ||
-			strings.Contains(err.Error(), httpTimeoutKeywords) {
+			strings.Contains(err.Error(), httpTimeoutKeywords) ||
+			strings.Contains(err.Error(), errConnectionRefused) {
 			needCached = true
 			needPending = true
 		}
