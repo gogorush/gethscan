@@ -23,6 +23,7 @@ import (
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
 	"github.com/weijun-sh/gethscan/mongodb"
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
@@ -103,6 +104,7 @@ var startHeightArgument int64
 
 var (
        chain         string
+	registerRPC  string
        mongodbEnable bool = true
 	syncedNumber uint64
 	syncedCount uint64
@@ -177,6 +179,8 @@ func scanSwap(ctx *cli.Context) error {
 
 	bcConfig := params.GetBlockChainConfig()
        chain = bcConfig.Chain
+	rConfig := params.GetRegisterConfig()
+	registerRPC = rConfig.Rpc
 	if bcConfig.SyncNumber > 0 {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
@@ -494,13 +498,13 @@ func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg
 	switch {
 	// router swap
 	case tokenCfg.IsRouterSwap():
-		scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
+		//scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
 		return nil
 
 	// bridge swapin
 	case tokenCfg.DepositAddress != "":
 		if tokenCfg.IsNativeToken() {
-			scanner.postBridgeSwap(txHash, tokenCfg)
+			scanner.postRegisterSwap(txHash, tokenCfg)
 			return nil
 		}
 
@@ -520,9 +524,79 @@ func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg
 	}
 
 	if verifyErr == nil {
-		scanner.postBridgeSwap(txHash, tokenCfg)
+		scanner.postRegisterSwap(txHash, tokenCfg)
 	}
 	return verifyErr
+}
+
+type swapRegister struct {
+	chain string
+	token string
+	method string
+	txid string
+	pairID string
+	rpcMethod string
+	swapServer string
+	registerServer string
+}
+
+func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.TokenConfig) {
+	pairID := tokenCfg.PairID
+	var subject, rpcMethod, method string
+	subject = "post bridge swap register"
+	rpcMethod = "swap.RegisterSwap"
+	log.Info(subject, "txid", txid, "pairID", pairID)
+	if tokenCfg.DepositAddress != "" {
+                subject = "post bridge swapin register"
+                method = "swap.Swapin"
+        } else {
+                subject = "post bridge swapout register"
+                method = "swap.Swapout"
+        }
+	swap := &swapRegister{
+		chain:          chain,
+		txid:           txid,
+		pairID:         pairID,
+		swapServer:     tokenCfg.SwapServer,
+		method:         method,
+		rpcMethod:      rpcMethod,
+		registerServer: registerRPC,
+	}
+	scanner.postSwapRegister(swap)
+}
+
+func (scanner *ethSwapScanner) postSwapRegister(swap *swapRegister) {
+	var needCached bool
+	//var needPending bool
+	for i := 0; i < scanner.rpcRetryCount; i++ {
+		err := rpcPostRegister(swap)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, tokens.ErrTxNotFound) ||
+			strings.Contains(err.Error(), httpTimeoutKeywords) ||
+			strings.Contains(err.Error(), errConnectionRefused) {
+			needCached = true
+	//		needPending = true
+		}
+		time.Sleep(scanner.rpcInterval)
+	}
+	if needCached {
+		log.Warn("cache swap register", "swap", swap)
+		scanner.cachedSwapPosts.Add(swap)
+	}
+       //if needPending {
+       //        if mongodbEnable {
+       //                //insert mongo post pending
+       //                addMongodbSwapPendingPost(swap)
+       //        }
+       //}
+       //if !needCached && !needPending {
+       //        if mongodbEnable {
+       //                //insert mongo post
+       //                addMongodbSwapPost(swap)
+       //        }
+       //}
 }
 
 func (scanner *ethSwapScanner) postBridgeSwap(txid string, tokenCfg *params.TokenConfig) {
@@ -629,6 +703,71 @@ func (scanner *ethSwapScanner) repostCachedSwaps() {
 		})
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func rpcPostRegister(swap *swapRegister) error {
+	spew.Printf("rpcPostRegister, swap: %v\n", swap)
+	var args interface{}
+	if swap.pairID != "" {
+		args = map[string]interface{}{
+			"method": swap.method,
+			"pairid": swap.pairID,
+			"txid":  swap.txid,
+			"swapServer": swap.swapServer,
+		}
+	} else {
+		return fmt.Errorf("wrong register post item %v", swap)
+	}
+
+	timeout := 300
+	reqID := 666
+	var result interface{}
+	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.registerServer, swap.rpcMethod, args)
+
+	if err != nil {
+		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
+			err = nil // ignore this kind of error
+			log.Info("post bridge swap register already exist", "swap", args)
+		} else {
+			log.Warn("post bridge swap register failed", "swap", args, "server", swap.swapServer, "err", err)
+		}
+		return err
+	}
+
+	log.Info("post bridge swap success", "swap", args)
+	return nil
+}
+
+func rpcPostRegisterPending(swap *swapRegister) error {
+	spew.Printf("rpcPostRegister, swap: %v\n", swap)
+	var args interface{}
+	if swap.pairID != "" {
+		args = map[string]interface{}{
+			"chain": swap.chain,
+			"token": swap.token,
+			"txid":  swap.txid,
+		}
+	} else {
+		return fmt.Errorf("wrong register post item %v", swap)
+	}
+
+	timeout := 300
+	reqID := 666
+	var result interface{}
+	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.swapServer, swap.rpcMethod, args)
+
+	if err != nil {
+		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
+			err = nil // ignore this kind of error
+			log.Info("post bridge swap register already exist", "swap", args)
+		} else {
+			log.Warn("post bridge swap register failed", "swap", args, "server", swap.swapServer, "err", err)
+		}
+		return err
+	}
+
+	log.Info("post bridge swap success", "swap", args)
+	return nil
 }
 
 func rpcPost(swap *swapPost) error {

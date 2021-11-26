@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/weijun-sh/CrossChain-Bridge/admin"
-	"github.com/weijun-sh/CrossChain-Bridge/common"
-	"github.com/weijun-sh/CrossChain-Bridge/mongodb"
-	"github.com/weijun-sh/CrossChain-Bridge/params"
-	"github.com/weijun-sh/CrossChain-Bridge/tokens"
-	"github.com/weijun-sh/CrossChain-Bridge/worker"
+	"github.com/anyswap/CrossChain-Bridge/admin"
+	"github.com/anyswap/CrossChain-Bridge/common"
+	"github.com/anyswap/CrossChain-Bridge/mongodb"
+	"github.com/anyswap/CrossChain-Bridge/params"
+	"github.com/anyswap/CrossChain-Bridge/tokens"
+	"github.com/anyswap/CrossChain-Bridge/worker"
 )
 
 const (

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/weijun-sh/CrossChain-Bridge/common"
-	"github.com/weijun-sh/CrossChain-Bridge/internal/swapapi"
-	"github.com/weijun-sh/CrossChain-Bridge/log"
-	"github.com/weijun-sh/CrossChain-Bridge/params"
+	"github.com/anyswap/CrossChain-Bridge/common"
+	"github.com/anyswap/CrossChain-Bridge/internal/swapapi"
+	"github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/anyswap/CrossChain-Bridge/params"
 	"github.com/gorilla/mux"
 )
 

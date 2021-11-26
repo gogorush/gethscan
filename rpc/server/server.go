@@ -15,11 +15,11 @@ import (
 	"github.com/gorilla/rpc/v2"
 	rpcjson "github.com/gorilla/rpc/v2/json2"
 
-	"github.com/weijun-sh/CrossChain-Bridge/cmd/utils"
-	"github.com/weijun-sh/CrossChain-Bridge/log"
-	"github.com/weijun-sh/CrossChain-Bridge/params"
-	"github.com/weijun-sh/CrossChain-Bridge/rpc/restapi"
-	"github.com/weijun-sh/CrossChain-Bridge/rpc/rpcapi"
+	"github.com/anyswap/CrossChain-Bridge/cmd/utils"
+	"github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/anyswap/CrossChain-Bridge/params"
+	"github.com/anyswap/CrossChain-Bridge/rpc/restapi"
+	"github.com/anyswap/CrossChain-Bridge/rpc/rpcapi"
 )
 
 // StartAPIServer start api server

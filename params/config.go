@@ -25,11 +25,13 @@ var (
 	scanConfig = &ScanConfig{}
 	mongodbConfig = &MongoDBConfig{}
 	blockchainConfig = &BlockChainConfig{}
+	registerConfig = &RegisterConfig{}
 )
 
 type Config struct {
        MongoDB *MongoDBConfig
 	BlockChain *BlockChainConfig
+	Register *RegisterConfig
        Tokens  []*TokenConfig
 }
 
@@ -45,6 +47,10 @@ type MongoDBConfig struct {
 type BlockChainConfig struct {
 	Chain string
 	SyncNumber uint64
+}
+
+type RegisterConfig struct {
+	Rpc string
 }
 
 // ScanConfig scan config
@@ -80,6 +86,11 @@ func GetBlockChainConfig() *BlockChainConfig {
        return blockchainConfig
 }
 
+// GetRegisterConfig get register config
+func GetRegisterConfig() *RegisterConfig {
+       return registerConfig
+}
+
 // IsNativeToken is native token
 func (c *TokenConfig) IsNativeToken() bool {
 	return c.TokenAddress == "native"
@@ -112,6 +123,7 @@ func LoadConfig(filePath string) *ScanConfig {
 
        mongodbConfig = config.MongoDB
 	blockchainConfig = config.BlockChain
+	registerConfig = config.Register
        scanConfig.Tokens = config.Tokens
 
        if err := scanConfig.CheckConfig(); err != nil {

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/weijun-sh/CrossChain-Bridge/internal/swapapi"
-	"github.com/weijun-sh/CrossChain-Bridge/params"
-	"github.com/weijun-sh/CrossChain-Bridge/tokens"
+	"github.com/anyswap/CrossChain-Bridge/internal/swapapi"
+	"github.com/anyswap/CrossChain-Bridge/params"
+	"github.com/anyswap/CrossChain-Bridge/tokens"
 )
 
 // RPCAPI rpc api handler

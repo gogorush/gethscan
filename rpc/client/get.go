@@ -6,7 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/weijun-sh/CrossChain-Bridge/log"
+	"github.com/anyswap/CrossChain-Bridge/log"
 )
 
 // RPCGet rpc get

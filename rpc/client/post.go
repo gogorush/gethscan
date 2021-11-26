@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/weijun-sh/CrossChain-Bridge/log"
+	"github.com/anyswap/CrossChain-Bridge/log"
 )
 
 const (

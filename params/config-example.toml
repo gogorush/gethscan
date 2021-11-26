@@ -4,11 +4,15 @@ DBURL = "localhost:27017"
 DBName = "post"
 UserName = "poster"
 Password = "123456"
-Enable = true
+Enable = false
 
 [BlockChain]
 Chain = "ftm"
 SyncNumber = 100
+
+#post register
+[Register]
+Url = "http://127.0.0.1:11556/rpc"
 
 [[Tokens]]
 TxType = "swapin"
