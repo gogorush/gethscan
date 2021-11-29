@@ -656,7 +656,7 @@ func rpcPostRegister(swap *swapPost) error {
 		return err
 	}
 
-	log.Info("post bridge swap success", "swap", args)
+	log.Info("post bridge swap success", "swap", args, "registerServer", registerServer)
 	return nil
 }
 

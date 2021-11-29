@@ -29,21 +29,21 @@ func TryDoTimes(name string, f func() error) (err error) {
 
 // --------------- add ---------------------------------
 
-// AddSwap and swap
-func AddSwap(ms *MgoSwap, overwrite bool) (err error) {
-	if overwrite {
-		_, err = collectionSwap.UpsertId(ms.Id, ms)
-		return err
-	} else {
-		err = collectionSwap.Insert(ms)
-	}
-	if err == nil {
-		log.Info("[mongodb] AddSwap success", "swap", ms)
-	} else {
-		log.Warn("[mongodb] AddSwap failed", "swap", ms, "err", err)
-	}
-	return err
-}
+//// AddSwap and swap
+//func AddSwap(ms *MgoSwap, overwrite bool) (err error) {
+//	if overwrite {
+//		_, err = collectionSwap.UpsertId(ms.Id, ms)
+//		return err
+//	} else {
+//		err = collectionSwap.Insert(ms)
+//	}
+//	if err == nil {
+//		log.Info("[mongodb] AddSwap success", "swap", ms)
+//	} else {
+//		log.Warn("[mongodb] AddSwap failed", "swap", ms, "err", err)
+//	}
+//	return err
+//}
 
 // AddSwapPending add pending
 func AddSwapPending(ms *MgoSwap, overwrite bool) (err error) {

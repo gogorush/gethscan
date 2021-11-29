@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	collectionSwap        *mgo.Collection
+	//collectionSwap        *mgo.Collection
 	collectionSwapPending *mgo.Collection
 	collectionSwapDeleted *mgo.Collection
 	collectionSyncedBlock *mgo.Collection
@@ -13,14 +13,14 @@ var (
 
 // do this when reconnect to the database
 func deinintCollections() {
-	collectionSwap = database.C(tbSwap)
+	//collectionSwap = database.C(tbSwap)
 	collectionSwapPending = database.C(tbSwapPending)
 	collectionSwapDeleted = database.C(tbSwapDeleted)
 	collectionSyncedBlock = database.C(tbSyncedBlock)
 }
 
 func initCollections() {
-	initCollection(tbSwap, &collectionSwap, "txid")
+	//initCollection(tbSwap, &collectionSwap, "txid")
 	initCollection(tbSwapPending, &collectionSwapPending, "txid")
 	initCollection(tbSwapDeleted, &collectionSwapDeleted, "txid")
 	initCollection(tbSyncedBlock, &collectionSyncedBlock, "chain")
