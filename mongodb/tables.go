@@ -6,8 +6,8 @@ import (
 
 const (
 	tbSwap        string = "swap"
-	tbSwapPending string = "pending"
-	tbSwapDeleted string = "deleted"
+	tbSwapPending string = "scanPending"
+	tbSwapDeleted string = "scanDeleted"
 	tbSyncedBlock string = "syncedBlock"
 )
 
