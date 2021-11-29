@@ -104,11 +104,13 @@ var startHeightArgument int64
 
 var (
        chain         string
-	registerRPC  string
        mongodbEnable bool = true
 	syncedNumber uint64
 	syncedCount uint64
 	syncdCount2Mongodb uint64 = 100
+
+	registerMethod = "swap.RegisterSwap"
+	registerServer string
 )
 
 type ethSwapScanner struct {
@@ -136,8 +138,9 @@ type ethSwapScanner struct {
 type swapPost struct {
 	// common
 	txid       string
-	rpcMethod  string
+	rpcMethod  string //swapin, out
 	swapServer string
+	chain      string
 
 	// bridge
 	pairID string
@@ -180,7 +183,7 @@ func scanSwap(ctx *cli.Context) error {
 	bcConfig := params.GetBlockChainConfig()
        chain = bcConfig.Chain
 	rConfig := params.GetRegisterConfig()
-	registerRPC = rConfig.Rpc
+	registerServer = rConfig.Rpc
 	if bcConfig.SyncNumber > 0 {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
@@ -236,7 +239,7 @@ func (scanner *ethSwapScanner) initClient() {
 
 func (scanner *ethSwapScanner) run() {
 	scanner.cachedSwapPosts = tools.NewRing(100)
-	go scanner.repostCachedSwaps()
+	go scanner.repostCachedRegisterSwaps()
 
 	scanner.processBlockTimers = make([]*time.Timer, scanner.jobCount+1)
 	for i := 0; i < len(scanner.processBlockTimers); i++ {
@@ -296,9 +299,9 @@ func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
 		wg.Add(1)
 		go scanner.scanRange(i+1, from, to, wg)
 	}
-	//if scanner.endHeight != 0 {
+	if scanner.endHeight != 0 {
 		wg.Wait()
-	//}
+	}
 }
 
 func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGroup) {
@@ -529,22 +532,10 @@ func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg
 	return verifyErr
 }
 
-type swapRegister struct {
-	chain string
-	token string
-	method string
-	txid string
-	pairID string
-	rpcMethod string
-	swapServer string
-	registerServer string
-}
-
 func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.TokenConfig) {
 	pairID := tokenCfg.PairID
-	var subject, rpcMethod, method string
+	var subject, method string
 	subject = "post bridge swap register"
-	rpcMethod = "swap.RegisterSwap"
 	log.Info(subject, "txid", txid, "pairID", pairID)
 	if tokenCfg.DepositAddress != "" {
                 subject = "post bridge swapin register"
@@ -553,94 +544,21 @@ func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.To
                 subject = "post bridge swapout register"
                 method = "swap.Swapout"
         }
-	swap := &swapRegister{
-		chain:          chain,
-		txid:           txid,
-		pairID:         pairID,
-		swapServer:     tokenCfg.SwapServer,
-		method:         method,
-		rpcMethod:      rpcMethod,
-		registerServer: registerRPC,
+	swap := &swapPost{
+		chain:      chain,
+		txid:       txid,
+		pairID:     pairID,
+		swapServer: tokenCfg.SwapServer,
+		rpcMethod:  method,
 	}
 	scanner.postSwapRegister(swap)
 }
 
-func (scanner *ethSwapScanner) postSwapRegister(swap *swapRegister) {
-	var needCached bool
-	//var needPending bool
-	for i := 0; i < scanner.rpcRetryCount; i++ {
-		err := rpcPostRegister(swap)
-		if err == nil {
-			break
-		}
-		if errors.Is(err, tokens.ErrTxNotFound) ||
-			strings.Contains(err.Error(), httpTimeoutKeywords) ||
-			strings.Contains(err.Error(), errConnectionRefused) {
-			needCached = true
-	//		needPending = true
-		}
-		time.Sleep(scanner.rpcInterval)
-	}
-	if needCached {
-		log.Warn("cache swap register", "swap", swap)
-		scanner.cachedSwapPosts.Add(swap)
-	}
-       //if needPending {
-       //        if mongodbEnable {
-       //                //insert mongo post pending
-       //                addMongodbSwapPendingPost(swap)
-       //        }
-       //}
-       //if !needCached && !needPending {
-       //        if mongodbEnable {
-       //                //insert mongo post
-       //                addMongodbSwapPost(swap)
-       //        }
-       //}
-}
-
-func (scanner *ethSwapScanner) postBridgeSwap(txid string, tokenCfg *params.TokenConfig) {
-	pairID := tokenCfg.PairID
-	var subject, rpcMethod string
-	if tokenCfg.DepositAddress != "" {
-		subject = "post bridge swapin register"
-		rpcMethod = "swap.Swapin"
-	} else {
-		subject = "post bridge swapout register"
-		rpcMethod = "swap.Swapout"
-	}
-	log.Info(subject, "txid", txid, "pairID", pairID)
-	swap := &swapPost{
-		txid:       txid,
-		pairID:     pairID,
-		rpcMethod:  rpcMethod,
-		swapServer: tokenCfg.SwapServer,
-	}
-	scanner.postSwapPost(swap)
-}
-
-func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCfg *params.TokenConfig) {
-	chainID := tokenCfg.ChainID
-
-	subject := "post router swap register"
-	rpcMethod := "swap.RegisterRouterSwap"
-	log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex)
-
-	swap := &swapPost{
-		txid:       txid,
-		chainID:    chainID,
-		logIndex:   fmt.Sprintf("%d", logIndex),
-		rpcMethod:  rpcMethod,
-		swapServer: tokenCfg.SwapServer,
-	}
-	scanner.postSwapPost(swap)
-}
-
-func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
+func (scanner *ethSwapScanner) postSwapRegister(swap *swapPost) {
 	var needCached bool
 	var needPending bool
 	for i := 0; i < scanner.rpcRetryCount; i++ {
-		err := rpcPost(swap)
+		err := rpcPostRegister(swap)
 		if err == nil {
 			break
 		}
@@ -653,7 +571,7 @@ func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
 		time.Sleep(scanner.rpcInterval)
 	}
 	if needCached {
-		log.Warn("cache swap", "swap", swap)
+		log.Warn("cache swap register", "swap", swap)
 		scanner.cachedSwapPosts.Add(swap)
 	}
        if needPending {
@@ -662,26 +580,30 @@ func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
                        addMongodbSwapPendingPost(swap)
                }
        }
-       if !needCached && !needPending {
-               if mongodbEnable {
-                       //insert mongo post
-                       addMongodbSwapPost(swap)
-               }
-       }
+       //if !needCached && !needPending {
+       //        if mongodbEnable {
+       //                //insert mongo post
+       //                addMongodbSwapPost(swap)
+       //        }
+       //}
 }
 
-func addMongodbSwapPost(swap *swapPost) {
-       ms := &mongodb.MgoSwap{
-               Id:         swap.txid,
-               Txid:       swap.txid,
-               PairID:     swap.pairID,
-               RpcMethod:  swap.rpcMethod,
-               SwapServer: swap.swapServer,
-               Chain:      chain,
-               Timestamp:  uint64(time.Now().Unix()),
-       }
-       mongodb.AddSwap(ms, false)
-}
+//func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCfg *params.TokenConfig) {
+//	chainID := tokenCfg.ChainID
+//
+//	subject := "post router swap register"
+//	rpcMethod := "swap.RegisterRouterSwap"
+//	log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex)
+//
+//	swap := &swapPost{
+//		txid:       txid,
+//		chainID:    chainID,
+//		logIndex:   fmt.Sprintf("%d", logIndex),
+//		rpcMethod:  rpcMethod,
+//		swapServer: tokenCfg.SwapServer,
+//	}
+//	scanner.postSwapPost(swap)
+//}
 
 func addMongodbSwapPendingPost(swap *swapPost) {
        ms := &mongodb.MgoSwap{
@@ -696,21 +618,21 @@ func addMongodbSwapPendingPost(swap *swapPost) {
        mongodb.AddSwapPending(ms, false)
  }
 
-func (scanner *ethSwapScanner) repostCachedSwaps() {
+func (scanner *ethSwapScanner) repostCachedRegisterSwaps() {
 	for {
 		scanner.cachedSwapPosts.Do(func(p interface{}) bool {
-			return scanner.repostSwap(p.(*swapPost))
+			return scanner.repostRegisterSwap(p.(*swapPost))
 		})
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func rpcPostRegister(swap *swapRegister) error {
+func rpcPostRegister(swap *swapPost) error {
 	spew.Printf("rpcPostRegister, swap: %v\n", swap)
 	var args interface{}
 	if swap.pairID != "" {
 		args = map[string]interface{}{
-			"method": swap.method,
+			"method": swap.rpcMethod,
 			"pairid": swap.pairID,
 			"txid":  swap.txid,
 			"swapServer": swap.swapServer,
@@ -722,7 +644,7 @@ func rpcPostRegister(swap *swapRegister) error {
 	timeout := 300
 	reqID := 666
 	var result interface{}
-	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.registerServer, swap.rpcMethod, args)
+	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, registerServer, registerMethod, args)
 
 	if err != nil {
 		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
@@ -738,105 +660,41 @@ func rpcPostRegister(swap *swapRegister) error {
 	return nil
 }
 
-func rpcPostRegisterPending(swap *swapRegister) error {
-	spew.Printf("rpcPostRegister, swap: %v\n", swap)
-	var args interface{}
-	if swap.pairID != "" {
-		args = map[string]interface{}{
-			"chain": swap.chain,
-			"token": swap.token,
-			"txid":  swap.txid,
-		}
-	} else {
-		return fmt.Errorf("wrong register post item %v", swap)
-	}
+//func rpcPostRegisterPending(swap *swapPost) error {
+//	spew.Printf("rpcPostRegisterPending, swap: %v\n", swap)
+//	var args interface{}
+//	if swap.pairID != "" {
+//		args = map[string]interface{}{
+//			"chain": swap.chain,
+//			"token": swap.token,
+//			"txid":  swap.txid,
+//		}
+//	} else {
+//		return fmt.Errorf("wrong register post item %v", swap)
+//	}
+//
+//	timeout := 300
+//	reqID := 666
+//	var result interface{}
+//	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, registerServer, registerMethod, args)
+//
+//	if err != nil {
+//		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
+//			err = nil // ignore this kind of error
+//			log.Info("post bridge swap register already exist", "swap", args)
+//		} else {
+//			log.Warn("post bridge swap register failed", "swap", args, "server", swap.swapServer, "err", err)
+//		}
+//		return err
+//	}
+//
+//	log.Info("post bridge swap success", "swap", args)
+//	return nil
+//}
 
-	timeout := 300
-	reqID := 666
-	var result interface{}
-	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.swapServer, swap.rpcMethod, args)
-
-	if err != nil {
-		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
-			err = nil // ignore this kind of error
-			log.Info("post bridge swap register already exist", "swap", args)
-		} else {
-			log.Warn("post bridge swap register failed", "swap", args, "server", swap.swapServer, "err", err)
-		}
-		return err
-	}
-
-	log.Info("post bridge swap success", "swap", args)
-	return nil
-}
-
-func rpcPost(swap *swapPost) error {
-	var isRouterSwap bool
-	var args interface{}
-	if swap.pairID != "" {
-		args = map[string]interface{}{
-			"txid":   swap.txid,
-			"pairid": swap.pairID,
-		}
-	} else if swap.logIndex != "" {
-		isRouterSwap = true
-		args = map[string]string{
-			"chainid":  swap.chainID,
-			"txid":     swap.txid,
-			"logindex": swap.logIndex,
-		}
-	} else {
-		return fmt.Errorf("wrong swap post item %v", swap)
-	}
-
-	timeout := 300
-	reqID := 666
-	var result interface{}
-	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.swapServer, swap.rpcMethod, args)
-
-	if err != nil {
-		if isRouterSwap {
-			log.Warn("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
-			return err
-		}
-		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
-			err = nil // ignore this kind of error
-			log.Info("post bridge swap already exist", "swap", args)
-		} else {
-			log.Warn("post bridge swap failed", "swap", args, "server", swap.swapServer, "err", err)
-		}
-		return err
-	}
-
-	if !isRouterSwap {
-		log.Info("post bridge swap success", "swap", args)
-		return nil
-	}
-
-	var status string
-	if res, ok := result.(map[string]interface{}); ok {
-		status, _ = res[swap.logIndex].(string)
-	}
-	if status == "" {
-		err = errors.New("post router swap unmarshal result failed")
-		log.Error(err.Error(), "swap", args, "server", swap.swapServer, "result", result)
-		return err
-	}
-	switch status {
-	case postSwapSuccessResult:
-		log.Info("post router swap success", "swap", args)
-	case routerSwapExistResult, routerSwapExistResultTmp:
-		log.Info("post router swap already exist", "swap", args)
-	default:
-		err = errors.New(status)
-		log.Info("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
-	}
-	return err
-}
-
-func (scanner *ethSwapScanner) repostSwap(swap *swapPost) bool {
+func (scanner *ethSwapScanner) repostRegisterSwap(swap *swapPost) bool {
 	for i := 0; i < scanner.rpcRetryCount; i++ {
-		err := rpcPost(swap)
+		err := rpcPostRegister(swap)
 		if err == nil {
 			return true
 		}
@@ -896,40 +754,40 @@ func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *t
 	return err
 }
 
-func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) {
-	if receipt == nil {
-		return
-	}
-	for i := 1; i < len(receipt.Logs); i++ {
-		rlog := receipt.Logs[i]
-		if rlog.Removed {
-			continue
-		}
-		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
-			continue
-		}
-		logTopic := rlog.Topics[0].Bytes()
-		switch {
-		case tokenCfg.IsRouterERC20Swap():
-			switch {
-			case bytes.Equal(logTopic, routerAnySwapOutTopic):
-			case bytes.Equal(logTopic, routerAnySwapTradeTokensForTokensTopic):
-			case bytes.Equal(logTopic, routerAnySwapTradeTokensForNativeTopic):
-			default:
-				continue
-			}
-		case tokenCfg.IsRouterNFTSwap():
-			switch {
-			case bytes.Equal(logTopic, logNFT721SwapOutTopic):
-			case bytes.Equal(logTopic, logNFT1155SwapOutTopic):
-			case bytes.Equal(logTopic, logNFT1155SwapOutBatchTopic):
-			default:
-				continue
-			}
-		}
-		scanner.postRouterSwap(tx.Hash().Hex(), i, tokenCfg)
-	}
-}
+//func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) {
+//	if receipt == nil {
+//		return
+//	}
+//	for i := 1; i < len(receipt.Logs); i++ {
+//		rlog := receipt.Logs[i]
+//		if rlog.Removed {
+//			continue
+//		}
+//		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
+//			continue
+//		}
+//		logTopic := rlog.Topics[0].Bytes()
+//		switch {
+//		case tokenCfg.IsRouterERC20Swap():
+//			switch {
+//			case bytes.Equal(logTopic, routerAnySwapOutTopic):
+//			case bytes.Equal(logTopic, routerAnySwapTradeTokensForTokensTopic):
+//			case bytes.Equal(logTopic, routerAnySwapTradeTokensForNativeTopic):
+//			default:
+//				continue
+//			}
+//		case tokenCfg.IsRouterNFTSwap():
+//			switch {
+//			case bytes.Equal(logTopic, logNFT721SwapOutTopic):
+//			case bytes.Equal(logTopic, logNFT1155SwapOutTopic):
+//			case bytes.Equal(logTopic, logNFT1155SwapOutBatchTopic):
+//			default:
+//				continue
+//			}
+//		}
+//		scanner.postRouterSwap(tx.Hash().Hex(), i, tokenCfg)
+//	}
+//}
 
 func (scanner *ethSwapScanner) parseErc20SwapinTxInput(input []byte, depositAddress string) error {
 	if len(input) < 4 {
@@ -1063,7 +921,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
                        sp.pairID = swap.PairID
                        sp.rpcMethod = swap.RpcMethod
                        sp.swapServer = swap.SwapServer
-                       ok := scanner.repostSwap(&sp)
+                       ok := scanner.repostRegisterSwap(&sp)
                        if ok == true {
                                mongodb.UpdateSwapPending(swap)
                        } else {

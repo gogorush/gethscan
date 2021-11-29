@@ -131,8 +131,8 @@ func deepCopy(swap *MgoSwap) *MgoSwap {
 func UpdateSwapPending(swap *MgoSwap) {
 	RemoveSwapPending(swap)
 
-	swap.Timestamp = uint64(time.Now().Unix())
-	AddSwap(swap, false)
+	//swap.Timestamp = uint64(time.Now().Unix())
+	//AddSwap(swap, false)
 }
 
 func FindSyncedBlockNumber(chain string) (uint64, error) {

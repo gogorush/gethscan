@@ -3,8 +3,8 @@
 DBURL = "localhost:27017"
 DBName = "post"
 UserName = "poster"
-Password = "123456"
-Enable = false
+Password = "post123456"
+Enable = true
 
 [BlockChain]
 Chain = "ftm"
