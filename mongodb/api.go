@@ -29,21 +29,21 @@ func TryDoTimes(name string, f func() error) (err error) {
 
 // --------------- add ---------------------------------
 
-//// AddSwap and swap
-//func AddSwap(ms *MgoSwap, overwrite bool) (err error) {
-//	if overwrite {
-//		_, err = collectionSwap.UpsertId(ms.Id, ms)
-//		return err
-//	} else {
-//		err = collectionSwap.Insert(ms)
-//	}
-//	if err == nil {
-//		log.Info("[mongodb] AddSwap success", "swap", ms)
-//	} else {
-//		log.Warn("[mongodb] AddSwap failed", "swap", ms, "err", err)
-//	}
-//	return err
-//}
+// AddSwap and swap
+func AddSwap(ms *MgoSwap, overwrite bool) (err error) {
+	if overwrite {
+		_, err = collectionSwap.UpsertId(ms.Id, ms)
+		return err
+	} else {
+		err = collectionSwap.Insert(ms)
+	}
+	if err == nil {
+		log.Info("[mongodb] AddSwap success", "swap", ms)
+	} else {
+		log.Warn("[mongodb] AddSwap failed", "swap", ms, "err", err)
+	}
+	return err
+}
 
 // AddSwapPending add pending
 func AddSwapPending(ms *MgoSwap, overwrite bool) (err error) {
@@ -76,12 +76,12 @@ func AddSwapDeleted(ms *MgoSwap, overwrite bool) (err error) {
 }
 
 // RemoveSwapPending add remove pending
-func RemoveSwapPending(ms *MgoSwap) (err error) {
-	err = collectionSwapPending.Remove(ms)
+func RemoveSwapPending(id string) (err error) {
+	err = collectionSwapPending.Remove(bson.M{"_id": id})
 	if err == nil {
-		log.Info("[mongodb] RemoveSwapPending success", "pending", ms)
+		log.Info("[mongodb] RemoveSwapPending success", "pending", id)
 	} else {
-		log.Warn("[mongodb] RemoveSwapPending failed", "pending", ms, "err", err)
+		log.Warn("[mongodb] RemoveSwapPending failed", "pending", id, "err", err)
 	}
 	return err
 }
@@ -119,20 +119,21 @@ func FindAllSwapPending(chain string) []*MgoSwap {
 func deepCopy(swap *MgoSwap) *MgoSwap {
 	sp := MgoSwap{}
 	sp.Id = swap.Id
-	sp.Txid = swap.Txid
 	sp.PairID = swap.PairID
 	sp.RpcMethod = swap.RpcMethod
 	sp.SwapServer = swap.SwapServer
+	sp.ChainID = swap.ChainID
 	sp.Chain = swap.Chain
+	sp.LogIndex = swap.LogIndex
 	sp.Timestamp = swap.Timestamp
 	return &sp
 }
 
 func UpdateSwapPending(swap *MgoSwap) {
-	RemoveSwapPending(swap)
+	RemoveSwapPending(swap.Id)
 
-	//swap.Timestamp = uint64(time.Now().Unix())
-	//AddSwap(swap, false)
+	swap.Timestamp = uint64(time.Now().Unix())
+	AddSwap(swap, false)
 }
 
 func FindSyncedBlockNumber(chain string) (uint64, error) {
