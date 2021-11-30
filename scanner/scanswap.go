@@ -200,7 +200,6 @@ func scanSwap(ctx *cli.Context) error {
 			log.Info("InitSyncedBlockNumber", "number", lb, "err", err)
 		}
 		go scanner.loopSwapPending()
-		select{}
 		syncedCount = 0
 		syncedNumber = getSyncdBlockNumber() - 10
 	} else {
