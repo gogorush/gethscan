@@ -457,10 +457,6 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 		cmpTxTo = tokenCfg.DepositAddress
 	} else {
 		cmpTxTo = tokenCfg.TokenAddress
-		if tokenCfg.CallByContract != "" {
-			cmpTxTo = tokenCfg.CallByContract
-			needReceipt = true
-		}
 	}
 
 	if strings.EqualFold(txtoAddress, cmpTxTo) {
