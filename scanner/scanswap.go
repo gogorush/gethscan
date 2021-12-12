@@ -86,6 +86,9 @@ scan cross chain swaps
 	logNFT721SwapOutTopic       = common.FromHex("0x0d45b0b9f5add3e1bb841982f1fa9303628b0b619b000cb1f9f1c3903329a4c7")
 	logNFT1155SwapOutTopic      = common.FromHex("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
 	logNFT1155SwapOutBatchTopic = common.FromHex("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
+
+	logAnycallSwapOutTopic = common.FromHex("0x3d1b3d059223895589208a5541dce543eab6d5942b3b1129231a942d1c47bc45")
+	logAnycallTransferSwapOutTopic = common.FromHex("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
 )
 
 const (
@@ -767,7 +770,8 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			continue
 		}
 		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
-			continue
+			fmt.Printf("verifyAndPostRouterSwapTx, rlog.Address.String(): %v, txhash: %v\n", rlog.Address.String(), tx.Hash().Hex())
+			//continue
 		}
 		logTopic := rlog.Topics[0].Bytes()
 		switch {
@@ -784,6 +788,14 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			case bytes.Equal(logTopic, logNFT721SwapOutTopic):
 			case bytes.Equal(logTopic, logNFT1155SwapOutTopic):
 			case bytes.Equal(logTopic, logNFT1155SwapOutBatchTopic):
+			default:
+				continue
+			}
+		case tokenCfg.IsRouterAnycallSwap():
+			fmt.Printf("tokenCfg.IsRouterAnycallSwap, logTopic: %v\n", logTopic)
+			switch {
+			case bytes.Equal(logTopic, logAnycallSwapOutTopic):
+			case bytes.Equal(logTopic, logAnycallTransferSwapOutTopic):
 			default:
 				continue
 			}
