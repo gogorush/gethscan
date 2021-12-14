@@ -1,5 +1,6 @@
 #!/bin/sh
-
+find . -type f |grep *.go|xargs gofmt -w
+exit
 find_files() {
   find . ! \( \
       \( \

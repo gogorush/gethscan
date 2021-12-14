@@ -5,15 +5,15 @@ import (
 )
 
 const (
-	tbSwap        string = "scanSwap"
-	tbSwapPending string = "scanPending"
+	tbSwap              string = "scanSwap"
+	tbSwapPending       string = "scanPending"
 	tbSwapRouterPending string = "scanRouterPending"
-	tbSwapDeleted string = "scanDeleted"
-	tbSyncedBlock string = "syncedBlock"
+	tbSwapDeleted       string = "scanDeleted"
+	tbSyncedBlock       string = "syncedBlock"
 )
 
 type MgoSwap struct {
-	Id         string `bson:"_id"` //txid
+	Id         string `bson:"_id"`       //txid
 	PairID     string `bson:"pairID"`    //"FXSv4"
 	RpcMethod  string `bson:"rpcMethod"` //"swap.Swapin"
 	SwapServer string `bson:"swapServer"`
@@ -24,9 +24,9 @@ type MgoSwap struct {
 }
 
 type MgoSwapRouter struct {
-	Id         string `bson:"_id"` //txid
-	LogIndex   string `bson:"logIndex"`    //"FXSv4"
-	ChainID    string `bson:"chainID"`    //"FXSv4"
+	Id         string `bson:"_id"`       //txid
+	LogIndex   string `bson:"logIndex"`  //"FXSv4"
+	ChainID    string `bson:"chainID"`   //"FXSv4"
 	RpcMethod  string `bson:"rpcMethod"` //"swap.SwapRouter"
 	SwapServer string `bson:"swapServer"`
 	Chain      string `bson:"chain"`
@@ -38,4 +38,3 @@ type SyncedBlock struct {
 	Chain       string `bson:"chain"`
 	BlockNumber uint64 `bson:"blocknumber"`
 }
-

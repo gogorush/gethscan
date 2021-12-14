@@ -5,8 +5,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/weijun-sh/gethscan/params"
 	"github.com/urfave/cli/v2"
+	"github.com/weijun-sh/gethscan/params"
 )
 
 var (

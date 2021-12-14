@@ -13,40 +13,40 @@ import (
 
 // swap tx types
 const (
-	TxSwapin     = "swapin"
-	TxSwapout    = "swapout"
-	TxSwapout2   = "swapout2" // swapout to string address (eg. BTC)
-	TxRouterERC20Swap = "routerswap"
-	TxRouterNFTSwap   = "nftswap"
-	TxRouterAnycallSwap   = "anycallswap"
+	TxSwapin            = "swapin"
+	TxSwapout           = "swapout"
+	TxSwapout2          = "swapout2" // swapout to string address (eg. BTC)
+	TxRouterERC20Swap   = "routerswap"
+	TxRouterNFTSwap     = "nftswap"
+	TxRouterAnycallSwap = "anycallswap"
 )
 
 var (
-	configFile string
-	scanConfig = &ScanConfig{}
-	mongodbConfig = &MongoDBConfig{}
+	configFile       string
+	scanConfig       = &ScanConfig{}
+	mongodbConfig    = &MongoDBConfig{}
 	blockchainConfig = &BlockChainConfig{}
-	registerConfig = &RegisterConfig{}
+	registerConfig   = &RegisterConfig{}
 )
 
 type Config struct {
-       MongoDB *MongoDBConfig
+	MongoDB    *MongoDBConfig
 	BlockChain *BlockChainConfig
-	Register *RegisterConfig
-       Tokens  []*TokenConfig
+	Register   *RegisterConfig
+	Tokens     []*TokenConfig
 }
 
 // MongoDBConfig mongodb config
 type MongoDBConfig struct {
-       DBURL      string
-       DBName     string
-       UserName   string `json:"-"`
-       Password   string `json:"-"`
-	Enable    bool
+	DBURL    string
+	DBName   string
+	UserName string `json:"-"`
+	Password string `json:"-"`
+	Enable   bool
 }
 
 type BlockChainConfig struct {
-	Chain string
+	Chain      string
 	SyncNumber uint64
 }
 
@@ -79,17 +79,17 @@ type TokenConfig struct {
 
 // GetMongodbConfig get mongodb config
 func GetMongodbConfig() *MongoDBConfig {
-       return mongodbConfig
+	return mongodbConfig
 }
 
 // GetBlockChainConfig get blockchain config
 func GetBlockChainConfig() *BlockChainConfig {
-       return blockchainConfig
+	return blockchainConfig
 }
 
 // GetRegisterConfig get register config
 func GetRegisterConfig() *RegisterConfig {
-       return registerConfig
+	return registerConfig
 }
 
 // IsNativeToken is native token
@@ -122,12 +122,12 @@ func LoadConfig(filePath string) *ScanConfig {
 	}
 	log.Println("LoadConfig finished.", string(bs))
 
-       mongodbConfig = config.MongoDB
+	mongodbConfig = config.MongoDB
 	blockchainConfig = config.BlockChain
 	registerConfig = config.Register
-       scanConfig.Tokens = config.Tokens
+	scanConfig.Tokens = config.Tokens
 
-       if err := scanConfig.CheckConfig(); err != nil {
+	if err := scanConfig.CheckConfig(); err != nil {
 		log.Fatalf("LoadConfig Check config failed. %v", err)
 	}
 
@@ -149,8 +149,8 @@ func ReloadConfig() {
 		return
 	}
 
-       scanConfig.Tokens = config.Tokens
-       if err := scanConfig.CheckConfig(); err != nil {
+	scanConfig.Tokens = config.Tokens
+	if err := scanConfig.CheckConfig(); err != nil {
 		log.Errorf("ReloadConfig Check config failed. %v", err)
 		return
 	}

@@ -171,4 +171,3 @@ func UpdateSyncedBlockNumber(chain string, number uint64) error {
 	err := collectionSyncedBlock.Update(selector, data)
 	return err
 }
-
