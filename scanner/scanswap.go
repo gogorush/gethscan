@@ -16,14 +16,15 @@ import (
 	"github.com/anyswap/CrossChain-Bridge/tokens"
 	"github.com/urfave/cli/v2"
 
-	ethclient "github.com/jowenshaw/gethclient"
-	"github.com/jowenshaw/gethclient/common"
-	"github.com/jowenshaw/gethclient/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
 	"github.com/weijun-sh/gethscan/mongodb"
-	"github.com/davecgh/go-spew/spew"
+
+        "github.com/ethereum/go-ethereum"
 )
 
 var (
@@ -76,9 +77,9 @@ scan cross chain swaps
 	addressSwapoutFuncHash = common.FromHex("0x628d6cba") // for ETH like `address` type address
 	stringSwapoutFuncHash  = common.FromHex("0xad54056d") // for BTC like `string` type address
 
-	transferLogTopic       = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
-	addressSwapoutLogTopic = common.HexToHash("0x6b616089d04950dc06c45c6dd787d657980543f89651aec47924752c7d16c888")
-	stringSwapoutLogTopic  = common.HexToHash("0x9c92ad817e5474d30a4378deface765150479363a897b0590fbb12ae9d89396b")
+	transferLogTopic       = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") //swapin
+	addressSwapoutLogTopic = common.HexToHash("0x6b616089d04950dc06c45c6dd787d657980543f89651aec47924752c7d16c888") //swapout
+	stringSwapoutLogTopic  = common.HexToHash("0x9c92ad817e5474d30a4378deface765150479363a897b0590fbb12ae9d89396b") //btc swapout
 
 	routerAnySwapOutTopic                  = common.FromHex("0x97116cf6cd4f6412bb47914d6db18da9e16ab2142f543b86e207c24fbd16b23a")
 	routerAnySwapTradeTokensForTokensTopic = common.FromHex("0xfea6abdf4fd32f20966dff7619354cd82cd43dc78a3bee479f04c74dbfc585b3")
@@ -87,6 +88,8 @@ scan cross chain swaps
 	logNFT721SwapOutTopic       = common.FromHex("0x0d45b0b9f5add3e1bb841982f1fa9303628b0b619b000cb1f9f1c3903329a4c7")
 	logNFT1155SwapOutTopic      = common.FromHex("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
 	logNFT1155SwapOutBatchTopic = common.FromHex("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
+
+        RouterAnycallTopic common.Hash = common.HexToHash("0x3d1b3d059223895589208a5541dce543eab6d5942b3b1129231a942d1c47bc45")
 )
 
 const (
@@ -112,6 +115,20 @@ var (
 	registerMethod = "swap.RegisterSwap"
 	registerRouterMethod = "swap.RegisterSwapRouter"
 	registerServer string
+
+	filterLogsSwapinChan chan types.Log
+	filterLogsSwapoutChan chan types.Log
+	filterLogsRouterChan chan types.Log
+	filterLogsRouterAnycallChan chan types.Log
+	filterLogsRouterNFTChan chan types.Log
+
+	tokenSwap map[string]*params.TokenConfig = make(map[string]*params.TokenConfig, 0)
+
+	fqSwapin ethereum.FilterQuery
+	fqSwapout ethereum.FilterQuery
+	fqSwapRouter ethereum.FilterQuery
+	fqSwapRouterNFT ethereum.FilterQuery
+	fqSwapRouterAnycall ethereum.FilterQuery
 )
 
 type ethSwapScanner struct {
@@ -255,6 +272,12 @@ func (scanner *ethSwapScanner) run() {
 		}
 	}
 
+	initFilterChan()
+	defer closeFilterChain()
+	go scanner.loopFilterChain()
+
+	initFilerLogs()
+
 	if startHeightArgument < 0 {
 		startHeightArgument = int64(syncedNumber)
 	}
@@ -270,9 +293,26 @@ func (scanner *ethSwapScanner) run() {
 			rewriteSyncdBlockNumber(wend)
 		}
 	}
+	select{}
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
 	}
+}
+
+func initFilterChan() {
+	filterLogsSwapinChan = make(chan types.Log, 128)
+	filterLogsSwapoutChan = make(chan types.Log, 128)
+	filterLogsRouterChan = make(chan types.Log, 128)
+	filterLogsRouterAnycallChan = make(chan types.Log, 128)
+	filterLogsRouterNFTChan = make(chan types.Log, 128)
+}
+
+func closeFilterChain() {
+	close(filterLogsSwapinChan)
+	close(filterLogsSwapoutChan)
+	close(filterLogsRouterChan)
+	close(filterLogsRouterAnycallChan)
+	close(filterLogsRouterNFTChan)
 }
 
 func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
@@ -310,7 +350,11 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
 
 	for h := from; h < to; h++ {
-		scanner.scanBlock(job, h, false)
+		//scanner.filterLogs(h, fqSwapin)
+		//scanner.filterLogs(h, fqSwapout)
+		//scanner.filterLogs(h, fqSwapRouter)
+		//scanner.filterLogs(h, fqSwapRouterNFT)
+		scanner.filterLogs(h, fqSwapRouterAnycall, filterLogsRouterAnycallChan)
 	}
 
 	log.Info(fmt.Sprintf("[%v] scan range finish", job), "from", from, "to", to)
@@ -428,6 +472,27 @@ SCANTXS:
 	if cache {
 		cachedBlocks.addBlock(blockHash)
 	}
+}
+
+func (scanner *ethSwapScanner) filterLogs(height uint64, fq ethereum.FilterQuery, ch chan types.Log) {
+	log.Info("filterLogs", "block", height)
+	ctx := context.Background()
+	fq.FromBlock = big.NewInt(int64(height))
+	fq.ToBlock = big.NewInt(int64(height) + 1)
+	for i := 0; i < scanner.rpcRetryCount; i++ {
+	        logs, err := scanner.client.FilterLogs(ctx, fq)
+	        if err == nil {
+			//log.Info("filterLogs", "block", height, "logs", logs)
+	                for _, l := range logs {
+	                        ch <- l
+	                }
+			//log.Info("filterLogs success", "block", height)
+	                return
+	        }
+	        log.Warn("filterLogs retry in 200 millisecond", "error", err, "block", height)
+	        time.Sleep(200 * time.Millisecond)
+	}
+	log.Warn("filterLogs failed", "block", height)
 }
 
 func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
@@ -577,12 +642,12 @@ func (scanner *ethSwapScanner) postSwapRegister(swap *swapPost) {
                        addMongodbSwapPendingPost(swap)
                }
        }
-       //if !needCached && !needPending {
-       //        if mongodbEnable {
-       //                //insert mongo post
-       //                addMongodbSwapPost(swap)
-       //        }
-       //}
+       if !needCached && !needPending {
+               if mongodbEnable {
+                       //insert mongo post
+                       addMongodbSwapPost(swap)
+               }
+       }
 }
 
 func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCfg *params.TokenConfig) {
@@ -617,6 +682,20 @@ func addMongodbSwapPendingPost(swap *swapPost) {
        mongodb.AddSwapPending(ms, false)
  }
 
+func addMongodbSwapPost(swap *swapPost) {
+       ms := &mongodb.MgoSwap{
+               Id:         swap.txid,
+               PairID:     swap.pairID,
+               RpcMethod:  swap.rpcMethod,
+               SwapServer: swap.swapServer,
+		ChainID:   swap.chainID,
+		LogIndex:  swap.logIndex,
+		Chain:     chain,
+               Timestamp:  uint64(time.Now().Unix()),
+       }
+       mongodb.AddSwap(ms, false)
+ }
+
 func (scanner *ethSwapScanner) repostCachedRegisterSwaps() {
 	for {
 		scanner.cachedSwapPosts.Do(func(p interface{}) bool {
@@ -627,7 +706,6 @@ func (scanner *ethSwapScanner) repostCachedRegisterSwaps() {
 }
 
 func rpcPostRegister(swap *swapPost) error {
-	spew.Printf("rpcPostRegister, swap: %v\n", swap)
 	var isRouterSwap bool
 	var register string
 	var args interface{}
@@ -674,7 +752,7 @@ func rpcPostRegister(swap *swapPost) error {
 		log.Info("post bridge swap success", "swap", args, "registerServer", registerServer)
 		return nil
 	} else {
-		log.Info("post bridge swap router success", "swap", args, "registerServer", registerServer)
+		log.Info("post router swap success", "swap", args, "registerServer", registerServer)
 		return nil
 	}
 	return nil
@@ -817,9 +895,9 @@ func (scanner *ethSwapScanner) parseErc20SwapinTxInput(input []byte, depositAddr
 	funcHash := input[:4]
 	switch {
 	case bytes.Equal(funcHash, transferFuncHash):
-		receiver = common.BytesToAddress(common.GetData(input, 4, 32)).Hex()
+		receiver = common.BytesToAddress(GetData(input, 4, 32)).Hex()
 	case bytes.Equal(funcHash, transferFromFuncHash):
-		receiver = common.BytesToAddress(common.GetData(input, 36, 32)).Hex()
+		receiver = common.BytesToAddress(GetData(input, 36, 32)).Hex()
 	default:
 		return tokens.ErrTxFuncHashMismatch
 	}
@@ -958,3 +1036,99 @@ func (scanner *ethSwapScanner) loopSwapPending() {
                time.Sleep(10 * time.Second)
        }
 }
+
+func initFilerLogs() {
+	var tokenSwapinAddresses = make([]common.Address, 0)
+	var tokenSwapoutAddresses = make([]common.Address, 0)
+	var tokenRouterAddresses = make([]common.Address, 0)
+	var tokenRouterAnycallAddresses = make([]common.Address, 0)
+	var tokenRouterNFTAddresses = make([]common.Address, 0)
+	tokens := params.GetScanConfig().Tokens
+	for _, tokenCfg := range tokens {
+		switch {
+		// router swap
+		case tokenCfg.IsRouterSwap():
+			key := fmt.Sprintf("router-%v", tokenCfg.RouterContract)
+			addTokenSwap(key, tokenCfg)
+			tokenRouterAddresses = append(tokenRouterAddresses, common.HexToAddress(tokenCfg.RouterContract))
+
+		// router NFT
+		case tokenCfg.IsRouterNFTSwap():
+			key := fmt.Sprintf("router-%v", tokenCfg.RouterContract)
+			addTokenSwap(key, tokenCfg)
+			tokenRouterNFTAddresses = append(tokenRouterNFTAddresses, common.HexToAddress(tokenCfg.RouterContract))
+
+		// router anycall swap
+		case tokenCfg.IsRouterAnycallSwap():
+			key := fmt.Sprintf("routeranycall-%v", common.HexToAddress(tokenCfg.RouterContract))
+			addTokenSwap(key, tokenCfg)
+			tokenRouterAnycallAddresses = append(tokenRouterAnycallAddresses, common.HexToAddress(tokenCfg.RouterContract))
+
+		// bridge swapin
+		case tokenCfg.DepositAddress != "":
+			if !tokenCfg.IsNativeToken() { // TODO native
+				key := fmt.Sprintf("swapin-%v-%v", tokenCfg.TokenAddress, tokenCfg.DepositAddress)
+				addTokenSwap(key, tokenCfg)
+				tokenSwapinAddresses = append(tokenSwapinAddresses, common.HexToAddress(tokenCfg.TokenAddress))
+			}
+
+		// bridge swapout
+		default:
+			key := fmt.Sprintf("swapout-%v", tokenCfg.TokenAddress)
+			addTokenSwap(key, tokenCfg)
+			tokenSwapoutAddresses = append(tokenSwapoutAddresses, common.HexToAddress(tokenCfg.TokenAddress))
+		}
+	}
+	//router anycall
+	topicsAnycall := make([][]common.Hash, 0)
+        topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic})
+	fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
+	fqSwapRouterAnycall.Topics = topicsAnycall
+	//router nft
+	topicsNFT := make([][]common.Hash, 0)
+        //topicsNFT = append(topicsNFT, []common.Hash{logNFT721SwapOutTopic}) // TODO
+	fqSwapRouterNFT.Addresses = tokenRouterNFTAddresses
+	fqSwapRouterNFT.Topics = topicsNFT
+	//router
+	topicsRouter := make([][]common.Hash, 0)
+        //topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic}) // TODO
+	fqSwapRouter.Addresses = tokenRouterAddresses
+	fqSwapRouter.Topics = topicsRouter
+	//swapin
+	topicsSwapin := make([][]common.Hash, 0)
+        topicsSwapin = append(topicsSwapin, []common.Hash{transferLogTopic})
+	fqSwapin.Addresses = tokenSwapinAddresses
+	fqSwapin.Topics = topicsSwapin
+	//swapout
+	topicsSwapout := make([][]common.Hash, 0)
+        topicsSwapout = append(topicsSwapout, []common.Hash{addressSwapoutLogTopic, stringSwapoutLogTopic})
+	fqSwapout.Addresses = tokenSwapoutAddresses
+	fqSwapout.Topics = topicsSwapout
+}
+
+func addTokenSwap(key string, tokenCfg *params.TokenConfig) {
+	if tokenSwap[key] != nil {
+		log.Fatal("addTokenSwap duplicate", "key", key)
+	}
+	tokenSwap[key] = tokenCfg
+}
+
+func (scanner *ethSwapScanner) loopFilterChain() {
+	 for {
+                select {
+                case msg := <-filterLogsRouterAnycallChan:
+                        txhash := msg.TxHash.String()
+                        log.Info("Find event", "txhash", txhash)
+			logIndex := int(msg.TxIndex)
+			key := fmt.Sprintf("routeranycall-%v", msg.Address)
+			token := tokenSwap[key]
+			if token == nil {
+				log.Warn("Find event", "txhash", txhash, "log.address not config", msg.Address)
+				continue
+			}
+                        //log.Info("SwapRouterAnycall", "txhash", txhash, "msg.Address", msg.Address, "chainID", chainID, "server", server)
+			scanner.postRouterSwap(txhash, logIndex, token)
+                }
+        }
+}
+

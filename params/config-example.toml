@@ -8,6 +8,7 @@ Enable = true
 
 [BlockChain]
 Chain = "ftm"
+ChainID = "250"
 SyncNumber = 100
 
 #post register
@@ -45,6 +46,13 @@ Whitelist = []
 
 [[Tokens]]
 TxType = "nftswap"
+ChainID = "1"
+SwapServer = "http://127.0.0.1:66556/rpc"
+RouterContract = "0x5F69b7Ab8F7cAb199a310Fd5A27B43Fef44ddcC0"
+Whitelist = []
+
+[[Tokens]]
+TxType = "anycallswap"
 ChainID = "1"
 SwapServer = "http://127.0.0.1:66556/rpc"
 RouterContract = "0x5F69b7Ab8F7cAb199a310Fd5A27B43Fef44ddcC0"
