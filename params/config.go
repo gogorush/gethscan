@@ -223,10 +223,30 @@ func (c *TokenConfig) IsBridgeSwap() bool {
 	}
 }
 
+// IsBridgeSwapin is bridge swapin
+func (c *TokenConfig) IsBridgeSwapin() bool {
+	switch c.TxType {
+	case TxSwapin:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsBridgeSwapout is bridge swapout
+func (c *TokenConfig) IsBridgeSwapout() bool {
+	switch c.TxType {
+	case TxSwapout, TxSwapout2:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsRouterSwap is router swap
 func (c *TokenConfig) IsRouterSwap() bool {
 	switch c.TxType {
-	case TxRouterERC20Swap, TxRouterNFTSwap:
+	case TxRouterERC20Swap:
 		return true
 	default:
 		return false

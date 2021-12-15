@@ -49,10 +49,10 @@ GLOBAL OPTIONS:
 
 ```text
 NAME:
-   gethscan scanswap - scan cross chain swaps
+   gethscan filterlogs - scan cross chain swaps
 
 USAGE:
-   gethscan scanswap [command options]
+   gethscan filterlogs [command options]
 
 DESCRIPTION:
    scan cross chain swaps
