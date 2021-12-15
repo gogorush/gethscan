@@ -8,7 +8,7 @@ Enable = true
 
 [BlockChain]
 Chain = "ftm"
-ChainID = "250"
+StableHeight = 10 # stable height
 SyncNumber = 100
 
 #post register

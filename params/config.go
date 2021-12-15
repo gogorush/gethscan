@@ -46,8 +46,9 @@ type MongoDBConfig struct {
 }
 
 type BlockChainConfig struct {
-	Chain      string
-	SyncNumber uint64
+	Chain        string
+	StableHeight uint64
+	SyncNumber   uint64
 }
 
 type RegisterConfig struct {
