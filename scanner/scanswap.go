@@ -393,43 +393,50 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapin(height uint64, cache bool) {
+func (scanner *ethSwapScanner) getLogsSwapin(height uint64) {
 	if len(fqSwapin.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapin, filterLogsSwapinChan, cache)
+		scanner.filterLogs(height, fqSwapin, filterLogsSwapinChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapout(height uint64, cache bool) {
+func (scanner *ethSwapScanner) getLogsSwapout(height uint64) {
 	if len(fqSwapout.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapout, filterLogsSwapoutChan, cache)
+		scanner.filterLogs(height, fqSwapout, filterLogsSwapoutChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouter(height uint64, cache bool) {
+func (scanner *ethSwapScanner) getLogsSwapRouter(height uint64) {
 	if len(fqSwapRouter.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapRouter, filterLogsRouterChan, cache)
+		scanner.filterLogs(height, fqSwapRouter, filterLogsRouterChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouterNFT(height uint64, cache bool) {
+func (scanner *ethSwapScanner) getLogsSwapRouterNFT(height uint64) {
 	if len(fqSwapRouterNFT.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapRouterNFT, filterLogsRouterNFTChan, cache)
+		scanner.filterLogs(height, fqSwapRouterNFT, filterLogsRouterNFTChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(height uint64, cache bool) {
+func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(height uint64) {
 	if len(fqSwapRouterAnycall.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapRouterAnycall, filterLogsRouterAnycallChan, cache)
+		scanner.filterLogs(height, fqSwapRouterAnycall, filterLogsRouterAnycallChan)
 	}
 }
 
 func (scanner *ethSwapScanner) getLogs(height uint64, cache bool) {
 	log.Info("getLogs", "block", height)
-	scanner.getLogsSwapin(height, cache)
-	scanner.getLogsSwapout(height, cache)
-	scanner.getLogsSwapRouter(height, cache)
-	scanner.getLogsSwapRouterNFT(height, cache)
-	scanner.getLogsSwapRouterAnycall(height, cache)
+	//if cache {
+	//	blockhash := logs[0].BlockHash.String()
+	//	if cachedBlocks.isScanned(blockhash) {
+	//		break
+	//	}
+	//	cachedBlocks.addBlock(blockhash)
+	//}
+	scanner.getLogsSwapin(height)
+	scanner.getLogsSwapout(height)
+	scanner.getLogsSwapRouter(height)
+	scanner.getLogsSwapRouterNFT(height)
+	scanner.getLogsSwapRouterAnycall(height)
 }
 
 func rewriteSyncdBlockNumber(number uint64) {
@@ -500,7 +507,7 @@ func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, 
 	return nil, err
 }
 
-func (scanner *ethSwapScanner) filterLogs(height uint64, fq ethereum.FilterQuery, ch chan types.Log, cache bool) {
+func (scanner *ethSwapScanner) filterLogs(height uint64, fq ethereum.FilterQuery, ch chan types.Log) {
 	ctx := context.Background()
 	fq.FromBlock = big.NewInt(int64(height))
 	fq.ToBlock = big.NewInt(int64(height) + 1)
@@ -508,13 +515,6 @@ func (scanner *ethSwapScanner) filterLogs(height uint64, fq ethereum.FilterQuery
 		logs, err := scanner.client.FilterLogs(ctx, fq)
 		if err == nil {
 			//log.Info("filterLogs", "block", height, "logs", logs)
-			if cache {
-				blockhash := logs[0].BlockHash.String()
-				if cachedBlocks.isScanned(blockhash) {
-					break
-				}
-				cachedBlocks.addBlock(blockhash)
-			}
 			for _, l := range logs {
 				ch <- l
 			}
@@ -1075,7 +1075,7 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		select {
 		case rlog := <-filterLogsSwapinChan:
 			txhash := rlog.TxHash.String()
-			log.Info("Find event", "txhash", txhash)
+			log.Info("Find event filterLogsSwapinChan", "txhash", txhash)
 			if len(rlog.Topics) != 3 {
 				log.Warn("Find event filterLogsSwapinChan", "txhash", txhash, "topics len (!= 3)", len(rlog.Topics))
 				continue
@@ -1091,7 +1091,7 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 
 		case rlog := <-filterLogsSwapoutChan:
 			txhash := rlog.TxHash.String()
-			log.Info("Find event", "txhash", txhash)
+			log.Info("Find event filterLogsSwapoutChan", "txhash", txhash)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapout, rlog.Address))
 			token := tokenSwap[key]
 			if token == nil {
@@ -1102,9 +1102,8 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 
 		case rlog := <-filterLogsRouterChan:
 			txhash := rlog.TxHash.String()
-			logIndex := int(rlog.TxIndex) //TODO
-			Index := int(rlog.Index)
-			log.Info("Find event filterLogsRouterChan", "txhash", txhash, "logIndex", logIndex, "Index", Index)
+			logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
+			log.Info("Find event filterLogsRouterChan", "txhash", txhash, "logIndex", logIndex)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouter, rlog.Address))
 			token := tokenSwap[key]
 			if token == nil {
@@ -1115,7 +1114,7 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 
 		case rlog := <-filterLogsRouterNFTChan:
 			txhash := rlog.TxHash.String()
-			logIndex := int(rlog.TxIndex) //TODO
+			logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
 			log.Info("Find event filterLogsRouterNFTChan", "txhash", txhash, "logIndex", logIndex)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterNFT, rlog.Address))
 			token := tokenSwap[key]
@@ -1127,7 +1126,7 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 
 		case rlog := <-filterLogsRouterAnycallChan:
 			txhash := rlog.TxHash.String()
-			logIndex := int(rlog.TxIndex) //TODO
+			logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
 			log.Info("Find event filterLogsRouterAnycallChan", "txhash", txhash, "logIndex", logIndex)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterAnycall, rlog.Address))
 			token := tokenSwap[key]
@@ -1139,3 +1138,18 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		}
 	}
 }
+
+func (scanner *ethSwapScanner) getIndexPosition(txhash common.Hash, index uint) int {
+	r, err := scanner.loopGetTxReceipt(txhash)
+	if err != nil {
+		log.Warn("get tx receipt error", "txHash", txhash, "err", err)
+		return 0
+	}
+	for i, log := range r.Logs {
+		if log.Index == index {
+			return i
+		}
+	}
+	return 0
+}
+
