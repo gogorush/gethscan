@@ -1032,15 +1032,14 @@ func initFilerLogs() {
 	//router nft
 	if len(tokenRouterNFTAddresses) > 0 {
 		topicsNFT := make([][]common.Hash, 0)
-		topicsNFT = append(topicsNFT, []common.Hash{logNFT721SwapOutTopic, logNFT1155SwapOutTopic}) // TODO
+		topicsNFT = append(topicsNFT, []common.Hash{logNFT721SwapOutTopic, logNFT1155SwapOutTopic, logNFT1155SwapOutBatchTopic})
 		fqSwapRouterNFT.Addresses = tokenRouterNFTAddresses
 		fqSwapRouterNFT.Topics = topicsNFT
 	}
 	//router
 	if len(tokenRouterAddresses) > 0 {
 		topicsRouter := make([][]common.Hash, 0)
-		//topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic}) // TODO
-		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapTradeTokensForTokensTopic}) // TODO
+		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic})
 		fqSwapRouter.Addresses = tokenRouterAddresses
 		fqSwapRouter.Topics = topicsRouter
 	}
