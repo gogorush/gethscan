@@ -172,10 +172,10 @@ func (c *ScanConfig) CheckConfig() (err error) {
 		if err != nil {
 			return err
 		}
-		if tokenCfg.IsRouterSwap() {
+		if tokenCfg.IsRouterSwap() || tokenCfg.IsRouterNFTSwap() || tokenCfg.IsRouterAnycallSwap() {
 			rkey := strings.ToLower(fmt.Sprintf("%v:%v:%v", tokenCfg.ChainID, tokenCfg.RouterContract, tokenCfg.SwapServer))
 			if _, exist = routerswapMap[rkey]; exist {
-				return errors.New("duplicate router swap config " + tokenCfg.RouterContract)
+				return errors.New(fmt.Sprintf("duplicate router swap config tokenCfg.RouterContract: %v", tokenCfg.RouterContract))
 			}
 			continue
 		}
@@ -184,13 +184,13 @@ func (c *ScanConfig) CheckConfig() (err error) {
 		}
 		pairIDKey := strings.ToLower(fmt.Sprintf("%v:%v:%v:%v", tokenCfg.TokenAddress, tokenCfg.PairID, tokenCfg.TxType, tokenCfg.SwapServer))
 		if _, exist = pairIDMap[pairIDKey]; exist {
-			return errors.New("duplicate pairID config " + pairIDKey)
+			return errors.New(fmt.Sprintf("duplicate pairID config pairIDKey: %v", pairIDKey))
 		}
 		pairIDMap[pairIDKey] = struct{}{}
 		if !tokenCfg.IsNativeToken() {
 			tokensKey := strings.ToLower(fmt.Sprintf("%v:%v", tokenCfg.TokenAddress, tokenCfg.DepositAddress))
 			if _, exist = tokensMap[tokensKey]; exist {
-				return errors.New("duplicate token config " + tokensKey)
+				return errors.New(fmt.Sprintf("duplicate token config tokensKey: %v, tokenCfg: %v", tokensKey, tokenCfg))
 			}
 			tokensMap[tokensKey] = struct{}{}
 		}

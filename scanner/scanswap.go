@@ -304,7 +304,6 @@ func (scanner *ethSwapScanner) run() {
 			rewriteSyncdBlockNumber(wend)
 		}
 	}
-	select {}
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
 	}
@@ -1074,7 +1073,7 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		select {
 		case rlog := <-filterLogsSwapinChan:
 			txhash := rlog.TxHash.String()
-			log.Info("Find event filterLogsSwapinChan", "txhash", txhash)
+			//log.Info("Find event filterLogsSwapinChan", "txhash", txhash)
 			if len(rlog.Topics) != 3 {
 				log.Warn("Find event filterLogsSwapinChan", "txhash", txhash, "topics len (!= 3)", len(rlog.Topics))
 				continue
@@ -1083,18 +1082,18 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 			key := strings.ToLower(fmt.Sprintf("%v-%v-%v", prefixSwapin, rlog.Address, receiver))
 			token := tokenSwap[key]
 			if token == nil {
-				log.Warn("Find event filterLogsSwapinChan", "txhash", txhash, "key not config", key)
+				log.Debug("Find event filterLogsSwapinChan", "txhash", txhash, "key not config", key)
 				continue
 			}
 			scanner.postRegisterSwap(txhash, token)
 
 		case rlog := <-filterLogsSwapoutChan:
 			txhash := rlog.TxHash.String()
-			log.Info("Find event filterLogsSwapoutChan", "txhash", txhash)
+			//log.Info("Find event filterLogsSwapoutChan", "txhash", txhash)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapout, rlog.Address))
 			token := tokenSwap[key]
 			if token == nil {
-				log.Warn("Find event filterLogsSwapoutChan", "txhash", txhash, "key not config", key)
+				log.Debug("Find event filterLogsSwapoutChan", "txhash", txhash, "key not config", key)
 				continue
 			}
 			scanner.postRegisterSwap(txhash, token)
@@ -1102,11 +1101,11 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		case rlog := <-filterLogsRouterChan:
 			txhash := rlog.TxHash.String()
 			logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
-			log.Info("Find event filterLogsRouterChan", "txhash", txhash, "logIndex", logIndex)
+			//log.Info("Find event filterLogsRouterChan", "txhash", txhash, "logIndex", logIndex)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouter, rlog.Address))
 			token := tokenSwap[key]
 			if token == nil {
-				log.Warn("Find event filterLogsRouterChan", "txhash", txhash, "key not config", key)
+				log.Debug("Find event filterLogsRouterChan", "txhash", txhash, "key not config", key)
 				continue
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
@@ -1114,11 +1113,11 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		case rlog := <-filterLogsRouterNFTChan:
 			txhash := rlog.TxHash.String()
 			logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
-			log.Info("Find event filterLogsRouterNFTChan", "txhash", txhash, "logIndex", logIndex)
+			//log.Info("Find event filterLogsRouterNFTChan", "txhash", txhash, "logIndex", logIndex)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterNFT, rlog.Address))
 			token := tokenSwap[key]
 			if token == nil {
-				log.Warn("Find event filterLogsRouterNFTChan", "txhash", txhash, "key not config", key)
+				log.Debug("Find event filterLogsRouterNFTChan", "txhash", txhash, "key not config", key)
 				continue
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
@@ -1126,11 +1125,11 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		case rlog := <-filterLogsRouterAnycallChan:
 			txhash := rlog.TxHash.String()
 			logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
-			log.Info("Find event filterLogsRouterAnycallChan", "txhash", txhash, "logIndex", logIndex)
+			//log.Info("Find event filterLogsRouterAnycallChan", "txhash", txhash, "logIndex", logIndex)
 			key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterAnycall, rlog.Address))
 			token := tokenSwap[key]
 			if token == nil {
-				log.Warn("Find event filterLogsRouterAnycallChan", "txhash", txhash, "key not config", key)
+				log.Debug("Find event filterLogsRouterAnycallChan", "txhash", txhash, "key not config", key)
 				continue
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
