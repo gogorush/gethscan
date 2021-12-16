@@ -308,6 +308,7 @@ func (scanner *ethSwapScanner) run() {
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
 	}
+	select {}
 }
 
 func initFilterChan() {
@@ -961,7 +962,7 @@ func InitMongodb() {
 func (scanner *ethSwapScanner) loopSwapPending() {
 	log.Info("start SwapPending loop job")
 	for {
-		sp := mongodb.FindAllSwapPending(chain)
+		sp := mongodb.FindAllSwapPending(chain, 0, 10)
 		if len(sp) == 0 {
 			time.Sleep(30 * time.Second)
 			continue
@@ -988,7 +989,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 				}
 			}
 		}
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 }
 
