@@ -111,6 +111,7 @@ var (
 	syncedNumber       uint64
 	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
+	filterLogsBlocks   uint64 = 20
 
 	registerMethod       = "swap.RegisterSwap"
 	registerRouterMethod = "swap.RegisterSwapRouter"
@@ -365,11 +366,21 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 	defer wg.Done()
 	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
 
-	for h := from; h < to; h++ {
-		scanner.getLogs(h, false)
+	for h := from; h <= to; h++ {
+		end := countFilterLogsBlock(h, to)
+		scanner.getLogs(h, end, false)
+		h = end
 	}
 
 	log.Info(fmt.Sprintf("[%v] scan range finish", job), "from", from, "to", to)
+}
+
+func countFilterLogsBlock(from, to uint64) uint64 {
+	end := from + filterLogsBlocks
+	if end > to {
+		end = to
+	}
+	return end
 }
 
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
@@ -382,9 +393,10 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
                         from = end
                 }
                 for h := from; h <= end; h++ {
-			scanner.getLogs(h, true)
+			end := countFilterLogsBlock(h, end)
+			scanner.getLogs(h, end, true)
                         if mongodbEnable {
-                                updateSyncdBlockNumber(h)
+                                updateSyncdBlockNumber(h, end)
                         }
                 }
                 from = end + 1
@@ -392,38 +404,38 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapin(height uint64) {
+func (scanner *ethSwapScanner) getLogsSwapin(from, to uint64) {
 	if len(fqSwapin.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapin, filterLogsSwapinChan)
+		scanner.filterLogs(from, to, fqSwapin, filterLogsSwapinChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapout(height uint64) {
+func (scanner *ethSwapScanner) getLogsSwapout(from, to uint64) {
 	if len(fqSwapout.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapout, filterLogsSwapoutChan)
+		scanner.filterLogs(from, to, fqSwapout, filterLogsSwapoutChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouter(height uint64) {
+func (scanner *ethSwapScanner) getLogsSwapRouter(from, to uint64) {
 	if len(fqSwapRouter.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapRouter, filterLogsRouterChan)
+		scanner.filterLogs(from, to, fqSwapRouter, filterLogsRouterChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouterNFT(height uint64) {
+func (scanner *ethSwapScanner) getLogsSwapRouterNFT(from, to uint64) {
 	if len(fqSwapRouterNFT.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapRouterNFT, filterLogsRouterNFTChan)
+		scanner.filterLogs(from, to, fqSwapRouterNFT, filterLogsRouterNFTChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(height uint64) {
+func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64) {
 	if len(fqSwapRouterAnycall.Addresses) > 0 {
-		scanner.filterLogs(height, fqSwapRouterAnycall, filterLogsRouterAnycallChan)
+		scanner.filterLogs(from, to, fqSwapRouterAnycall, filterLogsRouterAnycallChan)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogs(height uint64, cache bool) {
-	log.Info("getLogs", "block", height)
+func (scanner *ethSwapScanner) getLogs(from, to uint64, cache bool) {
+	log.Info("getLogs", "block from", from, "to", to)
 	//if cache {
 	//	blockhash := logs[0].BlockHash.String()
 	//	if cachedBlocks.isScanned(blockhash) {
@@ -431,11 +443,11 @@ func (scanner *ethSwapScanner) getLogs(height uint64, cache bool) {
 	//	}
 	//	cachedBlocks.addBlock(blockhash)
 	//}
-	scanner.getLogsSwapin(height)
-	scanner.getLogsSwapout(height)
-	scanner.getLogsSwapRouter(height)
-	scanner.getLogsSwapRouterNFT(height)
-	scanner.getLogsSwapRouterAnycall(height)
+	scanner.getLogsSwapin(from, to)
+	scanner.getLogsSwapout(from, to)
+	scanner.getLogsSwapRouter(from, to)
+	scanner.getLogsSwapRouterNFT(from, to)
+	scanner.getLogsSwapRouterAnycall(from, to)
 }
 
 func rewriteSyncdBlockNumber(number uint64) {
@@ -450,10 +462,14 @@ func rewriteSyncdBlockNumber(number uint64) {
 	}
 }
 
-func updateSyncdBlockNumber(number uint64) {
-	if number == syncedNumber+1 {
-		syncedCount += 1
-		syncedNumber = number
+func updateSyncdBlockNumber(from, to uint64) {
+	if to < from {
+		log.Warn("UpdateSyncedBlockNumber failed", "from", from, "< to", to)
+		return
+	}
+	if from == syncedNumber+1 {
+		syncedCount += to - from + 1
+		syncedNumber = to
 	}
 	if syncedCount >= syncdCount2Mongodb {
 		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
@@ -506,24 +522,24 @@ func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, 
 	return nil, err
 }
 
-func (scanner *ethSwapScanner) filterLogs(height uint64, fq ethereum.FilterQuery, ch chan types.Log) {
+func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQuery, ch chan types.Log) {
 	ctx := context.Background()
-	fq.FromBlock = big.NewInt(int64(height))
-	fq.ToBlock = big.NewInt(int64(height) + 1)
+	fq.FromBlock = big.NewInt(int64(from))
+	fq.ToBlock = big.NewInt(int64(to))
 	for i := 0; i < scanner.rpcRetryCount; i++ {
 		logs, err := scanner.client.FilterLogs(ctx, fq)
 		if err == nil {
-			//log.Info("filterLogs", "block", height, "logs", logs)
+			//log.Info("filterLogs", "block from", from, "to", to, "logs", logs)
 			for _, l := range logs {
 				ch <- l
 			}
 			//log.Info("filterLogs success", "block", height)
 			return
 		}
-		log.Warn("filterLogs retry in 200 millisecond", "error", err, "block", height)
+		log.Warn("filterLogs retry in 200 millisecond", "error", err, "block from", from, "to", to)
 		time.Sleep(200 * time.Millisecond)
 	}
-	log.Warn("filterLogs failed", "block", height)
+	log.Warn("filterLogs failed", "block from", from, "to", to)
 }
 
 func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
