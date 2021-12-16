@@ -764,7 +764,7 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 	if receipt == nil {
 		return
 	}
-	for i := 1; i < len(receipt.Logs); i++ {
+	for i := 0; i < len(receipt.Logs); i++ {
 		rlog := receipt.Logs[i]
 		if rlog.Removed {
 			continue
