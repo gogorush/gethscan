@@ -589,7 +589,6 @@ func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.To
 	pairID := tokenCfg.PairID
 	var subject, method string
 	subject = "post bridge swap register"
-	log.Info(subject, "txid", txid, "pairID", pairID)
 	if tokenCfg.DepositAddress != "" {
 		subject = "post bridge swapin register"
 		method = "swap.Swapin"
@@ -604,7 +603,13 @@ func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.To
 		swapServer: tokenCfg.SwapServer,
 		rpcMethod:  method,
 	}
-	scanner.postSwapRegister(swap)
+	if mongodbEnable {
+		//insert mongo post pending
+		addMongodbSwapPendingPost(swap)
+	} else {
+		log.Info(subject, "txid", txid, "pairID", pairID)
+		scanner.postSwapRegister(swap)
+	}
 }
 
 func (scanner *ethSwapScanner) postSwapRegister(swap *swapPost) {
@@ -643,10 +648,7 @@ func (scanner *ethSwapScanner) postSwapRegister(swap *swapPost) {
 
 func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCfg *params.TokenConfig) {
 	chainID := tokenCfg.ChainID
-
-	subject := "post router swap register"
 	rpcMethod := "swap.RegisterRouterSwap"
-	log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex)
 
 	swap := &swapPost{
 		txid:       txid,
@@ -656,7 +658,15 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 		chain:      chain,
 		swapServer: tokenCfg.SwapServer,
 	}
-	scanner.postSwapRegister(swap)
+	if mongodbEnable {
+		//insert mongo post pending
+		addMongodbSwapPendingPost(swap)
+	} else {
+		subject := "post router swap register"
+		log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex)
+
+		scanner.postSwapRegister(swap)
+	}
 }
 
 func addMongodbSwapPendingPost(swap *swapPost) {
@@ -962,8 +972,8 @@ func InitMongodb() {
 func (scanner *ethSwapScanner) loopSwapPending() {
 	log.Info("start SwapPending loop job")
 	for {
-		sp := mongodb.FindAllSwapPending(chain, 0, 10)
-		if len(sp) == 0 {
+		sp, err := mongodb.FindAllSwapPending(chain, 0, 10)
+		if err != nil || len(sp) == 0 {
 			time.Sleep(30 * time.Second)
 			continue
 		}

@@ -98,15 +98,15 @@ func FindswapPending(swap string) (*MgoSwap, error) {
 	return &res, nil
 }
 
-// FindAllSwapPending find SwapPending
-func FindAllSwapPending(chain string, offset, limit int) []*MgoSwap {
+// FindAllTokenAccounts find accounts
+func FindAllSwapPending(chain string, offset, limit int) ([]*MgoSwap, error) {
 	result := make([]*MgoSwap, 0, limit)
 	q := collectionSwapPending.Find(bson.M{"chain": chain}).Skip(offset).Limit(limit)
         err := q.All(&result)
         if err != nil {
-                return nil
+                return nil, err
         }
-        return result
+        return result, nil
 }
 
 func UpdateSwapPending(swap *MgoSwap) {
