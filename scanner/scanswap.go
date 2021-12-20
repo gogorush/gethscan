@@ -28,9 +28,9 @@ import (
 )
 
 var (
-	scanReceiptFlag = &cli.BoolFlag{
-		Name:  "scanReceipt",
-		Usage: "scan transaction receipt instead of transaction",
+	subscribeFlag = &cli.BoolFlag{
+		Name:  "subscribe",
+		Usage: "subscribe logs",
 	}
 
 	InitSyncdBlockNumberFlag = &cli.BoolFlag{
@@ -41,7 +41,7 @@ var (
 	startHeightFlag = &cli.Int64Flag{
 		Name:  "start",
 		Usage: "start height (start inclusive)",
-		Value: -1,
+		Value: 0,
 	}
 
 	timeoutFlag = &cli.Uint64Flag{
@@ -52,7 +52,7 @@ var (
 
 	// ScanSwapCommand scan swaps on eth like blockchain
 	ScanSwapCommand = &cli.Command{
-		Action:    scanSwap,
+		Action:    filterlogs,
 		Name:      "filterlogs",
 		Usage:     "scan cross chain swaps",
 		ArgsUsage: " ",
@@ -62,7 +62,7 @@ scan cross chain swaps
 		Flags: []cli.Flag{
 			utils.ConfigFileFlag,
 			utils.GatewayFlag,
-			scanReceiptFlag,
+			subscribeFlag,
 			InitSyncdBlockNumberFlag,
 			startHeightFlag,
 			utils.EndHeightFlag,
@@ -175,7 +175,7 @@ type swapPost struct {
 	logIndex string
 }
 
-func scanSwap(ctx *cli.Context) error {
+func filterlogs(ctx *cli.Context) error {
 	utils.SetLogger(ctx)
 	params.LoadConfig(utils.GetConfigFilePath(ctx))
 	go params.WatchAndReloadScanConfig()
@@ -186,7 +186,6 @@ func scanSwap(ctx *cli.Context) error {
 		rpcRetryCount: 3,
 	}
 	scanner.gateway = ctx.String(utils.GatewayFlag.Name)
-	scanner.scanReceipt = ctx.Bool(scanReceiptFlag.Name)
 	startHeightArgument = ctx.Int64(startHeightFlag.Name)
 	scanner.endHeight = ctx.Uint64(utils.EndHeightFlag.Name)
 	scanner.stableHeight = ctx.Uint64(utils.StableHeightFlag.Name)
@@ -234,7 +233,7 @@ func scanSwap(ctx *cli.Context) error {
 		syncedNumber = scanner.loopGetLatestBlockNumber() - 10
 	}
 
-	scanner.run()
+	scanner.run(ctx.Bool(subscribeFlag.Name))
 	return nil
 }
 
@@ -266,7 +265,7 @@ func (scanner *ethSwapScanner) initClient() {
 	log.Info("get chainID success", "chainID", scanner.chainID)
 }
 
-func (scanner *ethSwapScanner) run() {
+func (scanner *ethSwapScanner) run(subscribe bool) {
 	scanner.cachedSwapPosts = tools.NewRing(100)
 	go scanner.repostCachedRegisterSwaps()
 
@@ -306,7 +305,11 @@ func (scanner *ethSwapScanner) run() {
 		}
 	}
 	if scanner.endHeight == 0 {
-		scanner.scanLoop(wend)
+		if subscribe {
+			scanner.subscribe()
+		} else {
+			scanner.scanLoop(wend)
+		}
 	}
 	select {}
 }
@@ -382,6 +385,51 @@ func countFilterLogsBlock(from, to uint64) uint64 {
 		end = to
 	}
 	return end
+}
+
+func (scanner *ethSwapScanner) subscribeSwap(fq ethereum.FilterQuery, ch chan types.Log) {
+	ctx := context.Background()
+	sub := scanner.LoopSubscribe(ctx, fq, ch)
+        defer sub.Unsubscribe()
+
+	for {// check
+		select {
+		case err := <-sub.Err():
+                        log.Info("Subscribe swap error restart", "error", err)
+                        sub.Unsubscribe()
+                        sub = scanner.LoopSubscribe(ctx, fq, ch)
+		}
+	}
+}
+
+func (scanner *ethSwapScanner) subscribe() {
+	log.Info("start subscribe")
+	if len(fqSwapin.Addresses) > 0 {
+		go scanner.subscribeSwap(fqSwapin, filterLogsSwapinChan)
+	}
+	if len(fqSwapin.Addresses) > 0 {
+		go scanner.subscribeSwap(fqSwapout, filterLogsSwapoutChan)
+	}
+	if len(fqSwapin.Addresses) > 0 {
+		go scanner.subscribeSwap(fqSwapRouter, filterLogsRouterChan)
+	}
+	if len(fqSwapin.Addresses) > 0 {
+		go scanner.subscribeSwap(fqSwapRouterNFT, filterLogsRouterNFTChan)
+	}
+	if len(fqSwapin.Addresses) > 0 {
+		go scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
+	}
+}
+
+func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.FilterQuery, ch chan types.Log) ethereum.Subscription {
+        for {
+                sub, err := scanner.client.SubscribeFilterLogs(ctx, fq, ch)
+                if err == nil {
+                        return sub
+                }
+                log.Info("Subscribe logs failed, retry in 1 second", "error", err)
+                time.Sleep(time.Second * 1)
+        }
 }
 
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
