@@ -631,18 +631,15 @@ func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.To
 }
 
 func (scanner *ethSwapScanner) postSwap(swap *swapPost) {
-	if registerEnable {
-		scanner.postSwapRegister(swap)
-	} else {
-		rpcPost(swap)
-	}
-}
-
-func (scanner *ethSwapScanner) postSwapRegister(swap *swapPost) {
 	var needCached bool
 	var needPending bool
+	var err error
 	for i := 0; i < scanner.rpcRetryCount; i++ {
-		err := rpcPostRegister(swap)
+		if registerEnable {
+			err = rpcPostRegister(swap)
+		} else {
+			err = rpcPost(swap)
+		}
 		if err == nil {
 			break
 		}
@@ -882,8 +879,13 @@ func rpcPostRegister(swap *swapPost) error {
 //}
 
 func (scanner *ethSwapScanner) repostRegisterSwap(swap *swapPost) bool {
+	var err error
 	for i := 0; i < scanner.rpcRetryCount; i++ {
-		err := rpcPostRegister(swap)
+		if registerEnable {
+			err = rpcPostRegister(swap)
+		} else {
+			err = rpcPost(swap)
+		}
 		if err == nil {
 			return true
 		}
