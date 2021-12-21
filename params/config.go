@@ -11,6 +11,8 @@ import (
 	"github.com/anyswap/CrossChain-Bridge/log"
 )
 
+const TEST bool = false
+
 // swap tx types
 const (
 	TxSwapin            = "swapin"
@@ -48,11 +50,14 @@ type MongoDBConfig struct {
 type BlockChainConfig struct {
 	Chain        string
 	StableHeight uint64
+	GetLogsMaxBlocks uint64
+	GetLogsInterval uint64
 	SyncNumber   uint64
 }
 
 type RegisterConfig struct {
 	Rpc string
+	Enable   bool
 }
 
 // ScanConfig scan config
@@ -115,13 +120,15 @@ func LoadConfig(filePath string) *ScanConfig {
 		log.Fatalf("LoadConfig error (toml DecodeFile): %v", err)
 	}
 
-	var bs []byte
-	if log.JSONFormat {
-		bs, _ = json.Marshal(config)
-	} else {
-		bs, _ = json.MarshalIndent(config, "", "  ")
+	if TEST {
+		var bs []byte
+		if log.JSONFormat {
+			bs, _ = json.Marshal(config)
+		} else {
+			bs, _ = json.MarshalIndent(config, "", "  ")
+		}
+		log.Println("LoadConfig finished.", string(bs))
 	}
-	log.Println("LoadConfig finished.", string(bs))
 
 	mongodbConfig = config.MongoDB
 	blockchainConfig = config.BlockChain

@@ -107,11 +107,13 @@ var startHeightArgument int64
 
 var (
 	chain              string
-	mongodbEnable      bool = true
+	mongodbEnable      bool
+	registerEnable     bool
 	syncedNumber       uint64
 	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
-	filterLogsBlocks   uint64 = 20
+	getLogsMaxBlocks   uint64 = 20
+	getLogsInterval    uint64 = 10
 
 	registerMethod       = "swap.RegisterSwap"
 	registerRouterMethod = "swap.RegisterSwapRouter"
@@ -140,7 +142,6 @@ var (
 
 type ethSwapScanner struct {
 	gateway     string
-	scanReceipt bool
 
 	chainID *big.Int
 
@@ -199,22 +200,31 @@ func filterlogs(ctx *cli.Context) error {
 		scanner.stableHeight = bcConfig.StableHeight
 	}
 	chain = bcConfig.Chain
+	if bcConfig.GetLogsMaxBlocks > 0 {
+		getLogsMaxBlocks = bcConfig.GetLogsMaxBlocks
+	}
+	if bcConfig.GetLogsInterval > 0 {
+		getLogsInterval = bcConfig.GetLogsInterval
+	}
 	if bcConfig.SyncNumber > 0 {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
 
 	log.Info("get argument success",
 		"gateway", scanner.gateway,
-		"scanReceipt", scanner.scanReceipt,
 		"start", startHeightArgument,
 		"end", scanner.endHeight,
 		"stable", scanner.stableHeight,
+		"getLogsMaxBlocks", getLogsMaxBlocks,
+		"getLogsInterval", getLogsInterval,
+		"syncdCount2Mongodb", syncdCount2Mongodb,
 		"jobs", scanner.jobCount,
 		"timeout", scanner.processBlockTimeout,
 	)
 
 	rConfig := params.GetRegisterConfig()
 	registerServer = rConfig.Rpc
+	registerEnable = rConfig.Enable
 
 	//mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -380,7 +390,7 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 }
 
 func countFilterLogsBlock(from, to uint64) uint64 {
-	end := from + filterLogsBlocks
+	end := from + getLogsMaxBlocks
 	if end > to {
 		end = to
 	}
@@ -435,21 +445,23 @@ func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.Fi
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
 	log.Info("start scan loop job", "from", from, "stable", stable)
+	loopIntervalTime := time.Duration(getLogsInterval) * time.Second
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
                 end := latest - stable
                 if end < from {
                         from = end
                 }
-                for h := from; h <= end; h++ {
-			end := countFilterLogsBlock(h, end)
-			scanner.getLogs(h, end, true)
+                for h := from; h <= end; {
+			to := countFilterLogsBlock(h, end)
+			scanner.getLogs(h, to, true)
                         if mongodbEnable {
-                                updateSyncdBlockNumber(h, end)
+                                updateSyncdBlockNumber(h, to)
                         }
+			h = to + 1
                 }
-                from = end + 1
-		time.Sleep(1 * time.Second)
+                from = end
+		time.Sleep(loopIntervalTime)
 	}
 }
 
@@ -591,48 +603,6 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
 	log.Warn("filterLogs failed", "block from", from, "to", to)
 }
 
-func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
-	needReceipt := scanner.scanReceipt
-	txtoAddress := tx.To().String()
-
-	var cmpTxTo string
-	if tokenCfg.IsRouterSwap() {
-		cmpTxTo = tokenCfg.RouterContract
-		needReceipt = true
-	} else if tokenCfg.IsNativeToken() {
-		cmpTxTo = tokenCfg.DepositAddress
-	} else {
-		cmpTxTo = tokenCfg.TokenAddress
-	}
-
-	if strings.EqualFold(txtoAddress, cmpTxTo) {
-		isAcceptToAddr = true
-	} else if !tokenCfg.IsNativeToken() {
-		for _, whiteAddr := range tokenCfg.Whitelist {
-			if strings.EqualFold(txtoAddress, whiteAddr) {
-				isAcceptToAddr = true
-				needReceipt = true
-				break
-			}
-		}
-	}
-
-	if !isAcceptToAddr {
-		return nil, false
-	}
-
-	if needReceipt {
-		r, err := scanner.loopGetTxReceipt(tx.Hash())
-		if err != nil {
-			log.Warn("get tx receipt error", "txHash", tx.Hash().Hex(), "err", err)
-			return nil, false
-		}
-		receipt = r
-	}
-
-	return receipt, true
-}
-
 func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.TokenConfig) {
 	pairID := tokenCfg.PairID
 	var subject, method string
@@ -655,8 +625,16 @@ func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.To
 		//insert mongo post pending
 		addMongodbSwapPendingPost(swap)
 	} else {
-		log.Info(subject, "txid", txid, "pairID", pairID)
+		log.Info(subject, "swaptype", tokenCfg.TxType, "pairid", pairID, "txid", txid, "serverrpc", swap.swapServer)
+		scanner.postSwap(swap)
+	}
+}
+
+func (scanner *ethSwapScanner) postSwap(swap *swapPost) {
+	if registerEnable {
 		scanner.postSwapRegister(swap)
+	} else {
+		rpcPost(swap)
 	}
 }
 
@@ -711,9 +689,9 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 		addMongodbSwapPendingPost(swap)
 	} else {
 		subject := "post router swap register"
-		log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex)
+		log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex, "serverrpc", swap.swapServer)
 
-		scanner.postSwapRegister(swap)
+		scanner.postSwap(swap)
 	}
 }
 
@@ -752,6 +730,70 @@ func (scanner *ethSwapScanner) repostCachedRegisterSwaps() {
 		})
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func rpcPost(swap *swapPost) error {
+        var isRouterSwap bool
+        var args interface{}
+        if swap.pairID != "" {
+                args = map[string]interface{}{
+                        "txid":   swap.txid,
+                        "pairid": swap.pairID,
+                }
+        } else if swap.logIndex != "" {
+                isRouterSwap = true
+                args = map[string]string{
+                        "chainid":  swap.chainID,
+                        "txid":     swap.txid,
+                        "logindex": swap.logIndex,
+                }
+        } else {
+                return fmt.Errorf("wrong swap post item %v", swap)
+        }
+
+        timeout := 300
+        reqID := 666
+        var result interface{}
+        err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.swapServer, swap.rpcMethod, args)
+
+        if err != nil {
+                if isRouterSwap {
+                        log.Warn("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
+                        return err
+                }
+                if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
+                        err = nil // ignore this kind of error
+                        log.Info("post bridge swap already exist", "swap", args)
+                } else {
+                        log.Warn("post bridge swap failed", "swap", args, "server", swap.swapServer, "err", err)
+                }
+                return err
+        }
+
+        if !isRouterSwap {
+                log.Info("post bridge swap success", "swap", args)
+                return nil
+        }
+
+        var status string
+        if res, ok := result.(map[string]interface{}); ok {
+                status, _ = res[swap.logIndex].(string)
+        }
+        if status == "" {
+                err = errors.New("post router swap unmarshal result failed")
+                log.Error(err.Error(), "swap", args, "server", swap.swapServer, "result", result)
+                return err
+        }
+        switch status {
+        case postSwapSuccessResult:
+                log.Info("post router swap success", "swap", args)
+        case routerSwapExistResult, routerSwapExistResultTmp:
+                log.Info("post router swap already exist", "swap", args)
+        default:
+                err = errors.New(status)
+                log.Info("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
+        }
+        return err
 }
 
 func rpcPostRegister(swap *swapPost) error {
@@ -1021,8 +1063,9 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 	log.Info("start SwapPending loop job")
 	for {
 		sp, err := mongodb.FindAllSwapPending(chain, 0, 10)
-		if err != nil || len(sp) == 0 {
-			time.Sleep(30 * time.Second)
+		lenPending := len(sp)
+		if err != nil || lenPending == 0 {
+			time.Sleep(20 * time.Second)
 			continue
 		}
 		log.Info("loopSwapPending", "swap", sp, "len", len(sp))
@@ -1047,7 +1090,10 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 				}
 			}
 		}
-		time.Sleep(5 * time.Second)
+		if lenPending < 5 {
+			time.Sleep(10 * time.Second)
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
 

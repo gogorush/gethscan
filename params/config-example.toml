@@ -9,11 +9,14 @@ Enable = true
 [BlockChain]
 Chain = "ftm"
 StableHeight = 10 # stable height
+GetLogsMaxBlocks = 20 # max blocks every getLogs
+GetLogsInterval = 10 # seconds interval every getLogs
 SyncNumber = 100
 
 #post register
 [Register]
 Rpc = "http://127.0.0.1:11556/rpc"
+Enable = false
 
 [[Tokens]]
 TxType = "swapin"
