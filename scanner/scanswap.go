@@ -269,6 +269,7 @@ func (scanner *ethSwapScanner) run() {
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
 	}
+	select {}
 }
 
 func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
