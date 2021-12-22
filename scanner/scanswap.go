@@ -430,6 +430,10 @@ func (scanner *ethSwapScanner) subscribe() {
 	if len(fqSwapin.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
 	}
+	for {
+		scanner.loopGetLatestBlockNumber()
+		time.Sleep(30 * time.Second)
+	}
 }
 
 func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.FilterQuery, ch chan types.Log) ethereum.Subscription {
