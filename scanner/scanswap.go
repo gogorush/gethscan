@@ -301,7 +301,7 @@ func (scanner *ethSwapScanner) run(subscribe bool) {
 	initFilerLogs()
 
 	defer scanner.closeScanner()
-	if startHeightArgument < 0 {
+	if startHeightArgument <= 0 {
 		startHeightArgument = int64(syncedNumber)
 	}
 	if startHeightArgument != 0 {
