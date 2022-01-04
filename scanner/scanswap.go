@@ -629,7 +629,7 @@ func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.To
 	}
 	if mongodbEnable {
 		//insert mongo post pending
-		addMongodbSwapPendingPost(swap)
+		go scanner.addMongodbSwapPendingPost(swap)
 	} else {
 		log.Info(subject, "swaptype", tokenCfg.TxType, "pairid", pairID, "txid", txid, "serverrpc", swap.swapServer)
 		scanner.postSwap(swap)
@@ -665,7 +665,7 @@ func (scanner *ethSwapScanner) postSwap(swap *swapPost) {
 	if needPending {
 		if mongodbEnable {
 			//insert mongo post pending
-			addMongodbSwapPendingPost(swap)
+			go scanner.addMongodbSwapPendingPost(swap)
 		}
 	}
 	if !needCached && !needPending {
@@ -690,7 +690,7 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 	}
 	if mongodbEnable {
 		//insert mongo post pending
-		addMongodbSwapPendingPost(swap)
+		go scanner.addMongodbSwapPendingPost(swap)
 	} else {
 		subject := "post router swap register"
 		log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex, "serverrpc", swap.swapServer)
@@ -699,7 +699,7 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 	}
 }
 
-func addMongodbSwapPendingPost(swap *swapPost) {
+func (scanner *ethSwapScanner) addMongodbSwapPendingPost(swap *swapPost) {
 	ms := &mongodb.MgoSwap{
 		Id:         swap.txid,
 		PairID:     swap.pairID,
@@ -710,7 +710,13 @@ func addMongodbSwapPendingPost(swap *swapPost) {
 		Chain:      chain,
 		Timestamp:  uint64(time.Now().Unix()),
 	}
-	mongodb.AddSwapPending(ms, false)
+	for i := 0; i < scanner.rpcRetryCount; i++ {
+		err := mongodb.AddSwapPending(ms, false)
+		if err == nil {
+			break
+		}
+		time.Sleep(5 * scanner.rpcInterval)
+	}
 }
 
 func addMongodbSwapPost(swap *swapPost) {
@@ -912,10 +918,12 @@ func (scanner *ethSwapScanner) repostRegisterSwap(swap *swapPost) bool {
 		case strings.Contains(err.Error(), errConnectionRefused):
 		case strings.Contains(err.Error(), errMaximumRequestLimit):
 		default:
+			log.Warn("repostRegisterSwap redo", "err", err, "swap", swap)
 			return false
 		}
 		time.Sleep(scanner.rpcInterval)
 	}
+	log.Warn("repostRegisterSwap needed manual process", "err", err, "swap", swap)
 	return false
 }
 
