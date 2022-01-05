@@ -304,7 +304,7 @@ func (scanner *ethSwapScanner) run(subscribe bool) {
 	if startHeightArgument <= 0 {
 		startHeightArgument = int64(syncedNumber)
 	}
-	if startHeightArgument != 0 {
+	if startHeightArgument != 0 && !subscribe {
 		var start uint64
 		if startHeightArgument > 0 {
 			start = uint64(startHeightArgument)
@@ -431,10 +431,13 @@ func (scanner *ethSwapScanner) subscribe() {
 	if len(fqSwapin.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
 	}
-	for {
-		scanner.loopGetLatestBlockNumber()
-		time.Sleep(30 * time.Second)
-	}
+	go func() {
+		loopIntervalTime := time.Duration(getLogsInterval) * time.Second
+		for {
+			scanner.loopGetLatestBlockNumber()
+			time.Sleep(loopIntervalTime)
+		}
+	}()
 }
 
 func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.FilterQuery, ch chan types.Log) ethereum.Subscription {
