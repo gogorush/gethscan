@@ -1109,6 +1109,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 			sp.swapServer = swap.SwapServer
 			sp.chainID = swap.ChainID
 			sp.logIndex = swap.LogIndex
+			sp.chain = swap.Chain
 			ok := scanner.repostRegisterSwap(&sp)
 			if ok == true {
 				mongodb.UpdateSwapPending(swap)
