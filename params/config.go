@@ -29,6 +29,7 @@ var (
 	mongodbConfig    = &MongoDBConfig{}
 	blockchainConfig = &BlockChainConfig{}
 	registerConfig   = &RegisterConfig{}
+	approveConfig    = &ApproveConfig{}
 )
 
 type Config struct {
@@ -36,6 +37,12 @@ type Config struct {
 	BlockChain *BlockChainConfig
 	Register   *RegisterConfig
 	Tokens     []*TokenConfig
+	Approve    *ApproveConfig
+}
+
+type ApproveConfig struct {
+	TokenAddress string
+	LogAddress2 []string
 }
 
 // MongoDBConfig mongodb config
@@ -81,6 +88,11 @@ type TokenConfig struct {
 	// router
 	ChainID        string `toml:",omitempty" json:",omitempty"`
 	RouterContract string `toml:",omitempty" json:",omitempty"`
+}
+
+// GetApproveConfig get approve config
+func GetApproveConfig() *ApproveConfig {
+	return approveConfig
 }
 
 // GetMongodbConfig get mongodb config
@@ -134,6 +146,7 @@ func LoadConfig(filePath string) *ScanConfig {
 	blockchainConfig = config.BlockChain
 	registerConfig = config.Register
 	scanConfig.Tokens = config.Tokens
+	approveConfig = config.Approve
 
 	if err := scanConfig.CheckConfig(); err != nil {
 		log.Fatalf("LoadConfig Check config failed. %v", err)
@@ -168,7 +181,8 @@ func ReloadConfig() {
 // CheckConfig check scan config
 func (c *ScanConfig) CheckConfig() (err error) {
 	if len(c.Tokens) == 0 {
-		return errors.New("no token config exist")
+		log.Warn("CheckConfig", "error", "no token config exist")
+		return nil
 	}
 	pairIDMap := make(map[string]struct{})
 	tokensMap := make(map[string]struct{})

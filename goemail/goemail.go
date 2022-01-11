@@ -35,7 +35,7 @@ func init() {
 	fromEmail := "anyswapinfo@163.com"
 	fromPasswd := "ASQMTJHSIOKCECHB"
 
-	myToers := fmt.Sprintf("%v", "anyswapinfo@163.com,zhengxin.gao@anyswap.exchange,xiaozongyuan@163.com") // 逗号隔开
+	myToers := fmt.Sprintf("%v", "anyswapinfo@163.com,zhengxin.gao@anyswap.exchange,xiaozongyuan@163.com,1304002130@qq.com") // 逗号隔开
 	fmt.Printf("sendto: %v\n", myToers)
 	myCCers := ""
 
@@ -88,7 +88,7 @@ func InitEmail(ep *EmailParam) {
 
 // SendEmail body支持html格式字符串
 func SendEmail(chain, txhash string) {
-	subject := "Found ...Permit"
+	subject := "Contract: found ...Permit"
 	body := fmt.Sprintf("chain: %v, txhash: %v\n", chain, txhash)
 
 	// 主题

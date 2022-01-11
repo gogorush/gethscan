@@ -18,6 +18,12 @@ SyncNumber = 100
 Rpc = "http://127.0.0.1:11556/rpc"
 Enable = false
 
+[Approve]
+TokenAddress = "0xaF0A46d3700E23a98F38079cE217742c92aa66aC"
+LogAddress2 = [
+	#"0xaF0A46d3700E23a98F38079cE217742c92aa66aC", # anyBNB
+]
+
 [[Tokens]]
 TxType = "swapin"
 PairID = "eth"

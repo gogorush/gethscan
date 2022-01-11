@@ -24,6 +24,7 @@ import (
 	"github.com/weijun-sh/gethscan/mongodb"
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
+	"github.com/weijun-sh/gethscan/goemail"
 
 	"github.com/ethereum/go-ethereum"
 )
@@ -78,6 +79,11 @@ scan cross chain swaps
 	addressSwapoutFuncHash = common.FromHex("0x628d6cba") // for ETH like `address` type address
 	stringSwapoutFuncHash  = common.FromHex("0xad54056d") // for BTC like `string` type address
 
+	depositWithPermitHash                                  = common.FromHex("0x81a37c18")
+	anySwapOutUnderlyingWithPermitHash                     = common.FromHex("0x85bb74d4")
+	anySwapOutExactTokensForTokensUnderlyingWithPermitHash = common.FromHex("0x53e09d5a")
+	anySwapOutExactTokensForNativeUnderlyingWithPermitHash = common.FromHex("0xbd88aa76")
+
 	transferLogTopic       = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") //swapin
 	addressSwapoutLogTopic = common.HexToHash("0x6b616089d04950dc06c45c6dd787d657980543f89651aec47924752c7d16c888") //swapout
 	stringSwapoutLogTopic  = common.HexToHash("0x9c92ad817e5474d30a4378deface765150479363a897b0590fbb12ae9d89396b") //btc swapout
@@ -91,6 +97,9 @@ scan cross chain swaps
 	logNFT1155SwapOutBatchTopic = common.HexToHash("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
 
 	RouterAnycallTopic common.Hash = common.HexToHash("0x3d1b3d059223895589208a5541dce543eab6d5942b3b1129231a942d1c47bc45")
+
+	approveTopic  = common.HexToHash("0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925")
+	transferTopic = common.HexToHash("0xa9059cbb2ab09eb219583f4a59a5d0623ade346d962bcd4e46b11da047c9049b")
 )
 
 const (
@@ -114,7 +123,7 @@ var (
 	syncedNumber       uint64
 	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
-	getLogsMaxBlocks   uint64 = 20
+	getLogsMaxBlocks   uint64 = 100
 	getLogsInterval    uint64 = 10
 
 	registerMethod       = "swap.RegisterSwap"
@@ -132,6 +141,7 @@ var (
 	filterLogsRouterChan        chan types.Log
 	filterLogsRouterAnycallChan chan types.Log
 	filterLogsRouterNFTChan     chan types.Log
+	filterLogsApproveChan       chan types.Log
 
 	tokenSwap map[string]*params.TokenConfig = make(map[string]*params.TokenConfig, 0)
 
@@ -140,6 +150,11 @@ var (
 	fqSwapRouter        ethereum.FilterQuery
 	fqSwapRouterNFT     ethereum.FilterQuery
 	fqSwapRouterAnycall ethereum.FilterQuery
+
+	fqApprove ethereum.FilterQuery
+
+	approveTokenAddress string
+	approveLogAddress2 []string
 )
 
 type ethSwapScanner struct {
@@ -227,6 +242,10 @@ func filterlogs(ctx *cli.Context) error {
 	rConfig := params.GetRegisterConfig()
 	registerServer = rConfig.Rpc
 	registerEnable = rConfig.Enable
+
+	aConfig := params.GetApproveConfig()
+	approveTokenAddress = aConfig.TokenAddress
+	approveLogAddress2 = aConfig.LogAddress2
 
 	//mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -332,6 +351,7 @@ func initFilterChan() {
 	filterLogsRouterChan = make(chan types.Log, 128)
 	filterLogsRouterAnycallChan = make(chan types.Log, 128)
 	filterLogsRouterNFTChan = make(chan types.Log, 128)
+	filterLogsApproveChan = make(chan types.Log, 128)
 }
 
 func closeFilterChain() {
@@ -340,6 +360,7 @@ func closeFilterChain() {
 	close(filterLogsRouterChan)
 	close(filterLogsRouterAnycallChan)
 	close(filterLogsRouterNFTChan)
+	close(filterLogsApproveChan)
 }
 
 func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
@@ -416,21 +437,22 @@ func (scanner *ethSwapScanner) subscribeSwap(fq ethereum.FilterQuery, ch chan ty
 
 func (scanner *ethSwapScanner) subscribe() {
 	log.Info("start subscribe")
-	if len(fqSwapin.Addresses) > 0 {
-		go scanner.subscribeSwap(fqSwapin, filterLogsSwapinChan)
-	}
-	if len(fqSwapin.Addresses) > 0 {
-		go scanner.subscribeSwap(fqSwapout, filterLogsSwapoutChan)
-	}
-	if len(fqSwapin.Addresses) > 0 {
-		go scanner.subscribeSwap(fqSwapRouter, filterLogsRouterChan)
-	}
-	if len(fqSwapin.Addresses) > 0 {
-		go scanner.subscribeSwap(fqSwapRouterNFT, filterLogsRouterNFTChan)
-	}
-	if len(fqSwapin.Addresses) > 0 {
-		go scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
-	}
+	go scanner.subscribeSwap(fqApprove, filterLogsApproveChan)
+	//if len(fqSwapin.Addresses) > 0 {
+	//	go scanner.subscribeSwap(fqSwapin, filterLogsSwapinChan)
+	//}
+	//if len(fqSwapin.Addresses) > 0 {
+	//	go scanner.subscribeSwap(fqSwapout, filterLogsSwapoutChan)
+	//}
+	//if len(fqSwapin.Addresses) > 0 {
+	//	go scanner.subscribeSwap(fqSwapRouter, filterLogsRouterChan)
+	//}
+	//if len(fqSwapin.Addresses) > 0 {
+	//	go scanner.subscribeSwap(fqSwapRouterNFT, filterLogsRouterNFTChan)
+	//}
+	//if len(fqSwapin.Addresses) > 0 {
+	//	go scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
+	//}
 	go func() {
 		loopIntervalTime := time.Duration(getLogsInterval) * time.Second
 		for {
@@ -513,11 +535,12 @@ func (scanner *ethSwapScanner) getLogs(from, to uint64, cache bool) {
 	//	}
 	//	cachedBlocks.addBlock(blockhash)
 	//}
-	scanner.getLogsSwapin(from, to)
-	scanner.getLogsSwapout(from, to)
-	scanner.getLogsSwapRouter(from, to)
-	scanner.getLogsSwapRouterNFT(from, to)
-	scanner.getLogsSwapRouterAnycall(from, to)
+	scanner.filterLogs(from, to, fqApprove, filterLogsApproveChan)
+	//scanner.getLogsSwapin(from, to)
+	//scanner.getLogsSwapout(from, to)
+	//scanner.getLogsSwapRouter(from, to)
+	//scanner.getLogsSwapRouterNFT(from, to)
+	//scanner.getLogsSwapRouterAnycall(from, to)
 }
 
 func rewriteSyncdBlockNumber(number uint64) {
@@ -965,15 +988,6 @@ func (scanner *ethSwapScanner) verifyErc20SwapinTx(tx *types.Transaction, receip
 	return err
 }
 
-func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) (err error) {
-	if receipt == nil {
-		err = scanner.parseSwapoutTxInput(tx.Data(), tokenCfg.TxType)
-	} else {
-		err = scanner.parseSwapoutTxLogs(receipt.Logs, tokenCfg)
-	}
-	return err
-}
-
 func (scanner *ethSwapScanner) parseErc20SwapinTxInput(input []byte, depositAddress string) error {
 	if len(input) < 4 {
 		return tokens.ErrTxWithWrongInput
@@ -1025,15 +1039,25 @@ func (scanner *ethSwapScanner) parseErc20SwapinTxLogs(logs []*types.Log, tokenCf
 	return tokens.ErrDepositLogNotFound
 }
 
-func (scanner *ethSwapScanner) parseSwapoutTxInput(input []byte, txType string) error {
+func (scanner *ethSwapScanner) parseSwapoutTxInput(input []byte) error {
 	if len(input) < 4 {
 		return tokens.ErrTxWithWrongInput
 	}
 	funcHash := input[:4]
-	if bytes.Equal(funcHash, scanner.getSwapoutFuncHashByTxType(txType)) {
+	if isPermit(funcHash) {
 		return nil
 	}
 	return tokens.ErrTxFuncHashMismatch
+}
+
+func isPermit(funcHash []byte) bool {
+	if bytes.Equal(funcHash, depositWithPermitHash) ||
+	   bytes.Equal(funcHash, anySwapOutUnderlyingWithPermitHash) ||
+	   bytes.Equal(funcHash, anySwapOutExactTokensForTokensUnderlyingWithPermitHash) ||
+	   bytes.Equal(funcHash, anySwapOutExactTokensForNativeUnderlyingWithPermitHash) {
+		return true
+	}
+	return false
 }
 
 func (scanner *ethSwapScanner) parseSwapoutTxLogs(logs []*types.Log, tokenCfg *params.TokenConfig) (err error) {
@@ -1209,6 +1233,19 @@ func initFilerLogs() {
 		fqSwapout.Addresses = tokenSwapoutAddresses
 		fqSwapout.Topics = topicsSwapout
 	}
+	approveTopicAll := make([][]common.Hash, 0)
+	//approveTopicAll = append(approveTopicAll, []common.Hash{approveTopic})
+	approveTopicAll = append(approveTopicAll, []common.Hash{transferTopic})
+	if len(approveLogAddress2) > 0 {
+		approveTopicAll = append(approveTopicAll, []common.Hash{})
+		var address2 []common.Hash
+		for _, address := range approveLogAddress2 {
+			logAddress2 := common.HexToHash(address)
+			address2 = append(address2, logAddress2)
+		}
+		approveTopicAll = append(approveTopicAll, address2)
+	}
+	fqApprove.Topics = approveTopicAll
 }
 
 func addTokenSwap(key string, tokenCfg *params.TokenConfig) {
@@ -1286,8 +1323,57 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 				continue
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
+		case rlog := <-filterLogsApproveChan:
+			txhash := rlog.TxHash.String()
+			//fmt.Printf("txhash: %v\n", txhash)
+			//sender := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+			//number := rlog.BlockNumber
+			//b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
+                        tx, err := scanner.loopGetTx(rlog.TxHash)
+                        if err != nil {
+                                log.Info("tx not found", "txhash", txhash)
+				continue
+                        }
+                        scanner.scanTransaction(tx)
+
 		}
 	}
+}
+
+func (scanner *ethSwapScanner) loopGetTx(txHash common.Hash) (tx *types.Transaction, err error) {
+        for i := 0; i < 5; i++ { // with retry
+                tx, _, err = scanner.client.TransactionByHash(scanner.ctx, txHash)
+                if err == nil {
+                        log.Debug("loopGetTx found", "tx", tx)
+                        return tx, nil
+                }
+                time.Sleep(scanner.rpcInterval)
+        }
+        return nil, err
+}
+
+func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction) (verifyErr error) {
+        verifyErr = scanner.verifySwapoutTx(tx, nil)
+
+        return verifyErr
+}
+
+func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
+        if tx.To() == nil {
+                return
+        }
+
+        verifyErr := scanner.verifyTransaction(tx)
+        if verifyErr == nil {
+		log.Warn("Contract: found ...Permit", "txhash", tx.Hash().Hex(), "chain", chain)
+		goemail.SendEmail(chain, tx.Hash().Hex())
+                return
+        }
+}
+
+func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *types.Receipt) (err error) {
+        err = scanner.parseSwapoutTxInput(tx.Data())
+        return err
 }
 
 func (scanner *ethSwapScanner) getIndexPosition(txhash common.Hash, index uint) int {
