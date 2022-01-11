@@ -2,7 +2,6 @@ package goemail
 
 import (
 	"fmt"
-	"flag"
 	"strings"
 	"github.com/go-gomail/gomail"
 )
