@@ -19,6 +19,7 @@ var erc20CodeParts = map[string][]byte{
 	"symbol":    common.FromHex("0x95d89b41"),
 	"decimal":   common.FromHex("0x313ce567"),
 	"balanceOf": common.FromHex("0x70a08231"),
+	"allowance": common.FromHex("0xdd62ed3e"),
 }
 
 // GetErc20Balance get erc20 decimal balacne of address
@@ -39,6 +40,33 @@ func GetErc20Decimal(client *ethclient.Client, contract string) (*big.Int, error
 }
 
 var Decimal map[string]*big.Float = make(map[string]*big.Float)
+
+// GetErc20Allowance get erc20 allowance of address
+func GetErc20Allowance(client *ethclient.Client, contract, address, spender string) (*big.Float, error) {
+        //fmt.Printf("getErc20Balance, contract: %v, address: %v, spender: %v\n", contract, address, spender)
+        data := make([]byte, 68)
+        copy(data[:4], erc20CodeParts["allowance"])
+        copy(data[4:36], common.HexToAddress(address).Hash().Bytes())
+        copy(data[36:68], common.HexToAddress(spender).Hash().Bytes())
+        to := common.HexToAddress(contract)
+        msg := ethereum.CallMsg{
+                To:   &to,
+                Data: data,
+        }
+        result, err := callContract(client, msg)
+        if err != nil {
+                return big.NewFloat(0), err
+        }
+        b := fmt.Sprintf("0x%v", hex.EncodeToString(result))
+        ret, _ := com.GetBigIntFromStr(b)
+        retf := new(big.Float).SetInt(ret)
+        decimal, errd := getTokenDecimal(client, contract)
+        if errd != nil {
+                return big.NewFloat(0), errd
+        }
+        retf = new(big.Float).Quo(retf, decimal)
+        return retf, nil
+}
 
 // GetErc20Balance get erc20 balacne of address
 func GetErc20Balance(client *ethclient.Client, contract, address string) (*big.Float, error) {

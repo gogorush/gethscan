@@ -1330,9 +1330,11 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 			}
 			txhash := rlog.TxHash.String()
 			sender := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+			spender := common.BytesToAddress(rlog.Topics[2][:]).Hex()
 			number := rlog.BlockNumber
 			b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
-			log.Info("approve", "txhash", txhash, "number", number, "token", approveTokenAddress, "address", sender, "balance", b)
+			a, _ := token.GetErc20Allowance(scanner.client, approveTokenAddress, sender, spender)
+			log.Info("approve", "txhash", txhash, "number", number, "token", approveTokenAddress, "address", sender, "balance", b, "allowance", a, "spender", spender)
                         //tx, err := scanner.loopGetTx(rlog.TxHash)
                         //if err != nil {
                         //        log.Info("tx not found", "txhash", txhash)
