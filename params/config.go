@@ -148,9 +148,9 @@ func LoadConfig(filePath string) *ScanConfig {
 	scanConfig.Tokens = config.Tokens
 	approveConfig = config.Approve
 
-	if err := scanConfig.CheckConfig(); err != nil {
-		log.Fatalf("LoadConfig Check config failed. %v", err)
-	}
+	//if err := scanConfig.CheckConfig(); err != nil {
+	//	log.Fatalf("LoadConfig Check config failed. %v", err)
+	//}
 
 	configFile = filePath // init config file path
 	return scanConfig

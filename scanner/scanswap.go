@@ -25,6 +25,7 @@ import (
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
 	"github.com/weijun-sh/gethscan/goemail"
+	"github.com/weijun-sh/gethscan/token"
 
 	"github.com/ethereum/go-ethereum"
 )
@@ -1234,8 +1235,8 @@ func initFilerLogs() {
 		fqSwapout.Topics = topicsSwapout
 	}
 	approveTopicAll := make([][]common.Hash, 0)
-	//approveTopicAll = append(approveTopicAll, []common.Hash{approveTopic})
-	approveTopicAll = append(approveTopicAll, []common.Hash{transferTopic})
+	approveTopicAll = append(approveTopicAll, []common.Hash{approveTopic})
+	//approveTopicAll = append(approveTopicAll, []common.Hash{transferTopic})
 	if len(approveLogAddress2) > 0 {
 		approveTopicAll = append(approveTopicAll, []common.Hash{})
 		var address2 []common.Hash
@@ -1325,16 +1326,17 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 			scanner.postRouterSwap(txhash, logIndex, token)
 		case rlog := <-filterLogsApproveChan:
 			txhash := rlog.TxHash.String()
-			//fmt.Printf("txhash: %v\n", txhash)
-			//sender := common.BytesToAddress(rlog.Topics[1][:]).Hex()
-			//number := rlog.BlockNumber
-			//b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
-                        tx, err := scanner.loopGetTx(rlog.TxHash)
-                        if err != nil {
-                                log.Info("tx not found", "txhash", txhash)
-				continue
-                        }
-                        scanner.scanTransaction(tx)
+			fmt.Printf("txhash: %v\n", txhash)
+			sender := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+			number := rlog.BlockNumber
+			b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
+			log.Info("approve", "txhash", txhash, "number", number, "token", approveTokenAddress, "account", sender, "balance", b)
+                        //tx, err := scanner.loopGetTx(rlog.TxHash)
+                        //if err != nil {
+                        //        log.Info("tx not found", "txhash", txhash)
+			//	continue
+                        //}
+                        //scanner.scanTransaction(tx)
 
 		}
 	}
