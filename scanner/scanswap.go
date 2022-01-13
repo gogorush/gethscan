@@ -1325,12 +1325,14 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
 		case rlog := <-filterLogsApproveChan:
+			if !bytes.Equal([]byte(rlog.Address.String()), []byte(approveTokenAddress)) {
+				continue
+			}
 			txhash := rlog.TxHash.String()
-			fmt.Printf("txhash: %v\n", txhash)
 			sender := common.BytesToAddress(rlog.Topics[1][:]).Hex()
 			number := rlog.BlockNumber
 			b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
-			log.Info("approve", "txhash", txhash, "number", number, "token", approveTokenAddress, "account", sender, "balance", b)
+			log.Info("approve", "txhash", txhash, "number", number, "token", approveTokenAddress, "address", sender, "balance", b)
                         //tx, err := scanner.loopGetTx(rlog.TxHash)
                         //if err != nil {
                         //        log.Info("tx not found", "txhash", txhash)
