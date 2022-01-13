@@ -121,6 +121,8 @@ var (
 	registerRouterMethod = "swap.RegisterSwapRouter"
 	registerServer       string
 
+	configFile chan bool = make(chan bool)
+
 	prefixSwapin = "swapin"
 	prefixSwapout = "swapout"
 	prefixSwapRouter = "router"
@@ -178,10 +180,20 @@ type swapPost struct {
 	logIndex string
 }
 
+func WatchAndReloadScanConfig(cf chan bool) {
+	go params.WatchAndReloadScanConfig(cf)
+        for {
+                select {
+                case <-cf:
+			initFilerLogs()
+		}
+	}
+}
+
 func filterlogs(ctx *cli.Context) error {
 	utils.SetLogger(ctx)
 	params.LoadConfig(utils.GetConfigFilePath(ctx))
-	go params.WatchAndReloadScanConfig()
+	go WatchAndReloadScanConfig(configFile)
 
 	scanner := &ethSwapScanner{
 		ctx:           context.Background(),
@@ -1130,6 +1142,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 }
 
 func initFilerLogs() {
+	tokenSwap = make(map[string]*params.TokenConfig, 0)
 	var tokenSwapinAddresses = make([]common.Address, 0)
 	var tokenSwapoutAddresses = make([]common.Address, 0)
 	var tokenRouterAddresses = make([]common.Address, 0)

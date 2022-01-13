@@ -158,6 +158,7 @@ func ReloadConfig() {
 	}
 
 	scanConfig.Tokens = config.Tokens
+
 	if err := scanConfig.CheckConfig(); err != nil {
 		log.Errorf("ReloadConfig Check config failed. %v", err)
 		return

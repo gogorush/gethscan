@@ -6,7 +6,7 @@ import (
 )
 
 // WatchAndReloadScanConfig reload scan config if modified
-func WatchAndReloadScanConfig() {
+func WatchAndReloadScanConfig(cf chan bool) {
 	log.Info("start job of watch and reload config")
 	watch, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -42,6 +42,7 @@ func WatchAndReloadScanConfig() {
 			for _, op := range ops {
 				if ev.Op&op == op {
 					ReloadConfig()
+					cf <- true
 					break
 				}
 			}
