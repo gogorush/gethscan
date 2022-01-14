@@ -774,8 +774,8 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			continue
 		}
 		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
-			fmt.Printf("verifyAndPostRouterSwapTx, rlog.Address.String(): %v, txhash: %v\n", rlog.Address.String(), tx.Hash().Hex())
-			//continue
+			//fmt.Printf("verifyAndPostRouterSwapTx, rlog.Address.String(): %v, txhash: %v\n", rlog.Address.String(), tx.Hash().Hex())
+			continue
 		}
 		logTopic := rlog.Topics[0].Bytes()
 		switch {
