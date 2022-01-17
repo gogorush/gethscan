@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
@@ -653,7 +654,7 @@ func rpcPost(swap *swapPost) error {
 			"logindex": swap.logIndex,
 		}
 	} else {
-		return fmt.Errorf("wrong swap post item %v", swap)
+		return fmt.Errorf("wrong swap post item %v, no pairid and logindex", swap)
 	}
 
 	timeout := 300
@@ -687,6 +688,16 @@ func rpcPost(swap *swapPost) error {
 	if status == "" {
 		err = errors.New("post router swap unmarshal result failed")
 		log.Error(err.Error(), "swap", args, "server", swap.swapServer, "result", result)
+                var resultMap map[string]interface{}
+                b, _ := json.Marshal(&result)
+                json.Unmarshal(b, &resultMap)
+                for _, value := range resultMap {
+                        if strings.Contains(value.(string), routerSwapExistResult) ||
+                           strings.Contains(value.(string), routerSwapExistResultTmp) {
+                                log.Info("post router swap already exist", "swap", args)
+                                return nil
+                        }
+                }
 		return err
 	}
 	switch status {
