@@ -1235,7 +1235,7 @@ func initFilerLogs() {
 	}
 	approveTopicAll := make([][]common.Hash, 0)
 	//approveTopicAll = append(approveTopicAll, []common.Hash{approveTopic})
-	approveTopicAll = append(approveTopicAll, []common.Hash{transferTopic})
+	approveTopicAll = append(approveTopicAll, []common.Hash{routerAnySwapOutTopic})
 	if len(approveLogAddress2) > 0 {
 		approveTopicAll = append(approveTopicAll, []common.Hash{})
 		var address2 []common.Hash
@@ -1326,18 +1326,31 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		case rlog := <-filterLogsApproveChan:
 			txhash := rlog.TxHash.String()
 			//fmt.Printf("txhash: %v\n", txhash)
-			//sender := common.BytesToAddress(rlog.Topics[1][:]).Hex()
-			//number := rlog.BlockNumber
+			token := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+			from := common.BytesToAddress(rlog.Topics[2][:]).Hex()
+			sender := common.BytesToAddress(rlog.Topics[3][:]).Hex()
+			number := rlog.BlockNumber
 			//b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
-                        tx, err := scanner.loopGetTx(rlog.TxHash)
-                        if err != nil {
-                                log.Info("tx not found", "txhash", txhash)
-				continue
-                        }
-                        scanner.scanTransaction(tx)
-
+			if !isOurselfToken(string(token)) {
+				log.Warn("Contract: found not our self token permit", "block", number, "txhash", txhash, "chain", chain, "token", token, "attacker", sender, "victim", from)
+				subject := fmt.Sprintf("Contract: found not our self token permit")
+				body := fmt.Sprintf("chain: %v, block: %v, token: %v, txhash: %v, attacker: %v, victim: %v", chain, number, token, txhash, sender, from)
+				goemail.SendEmail(subject, body)
+			}
 		}
 	}
+}
+
+func isOurselfToken(address string) bool {
+	ourselfTokens := params.GetBridgeToken()
+	isOurSelf := false
+	for _, token := range ourselfTokens {
+		if strings.EqualFold(address, token) {
+			isOurSelf = true
+			break
+		}
+	}
+	return isOurSelf
 }
 
 func (scanner *ethSwapScanner) loopGetTx(txHash common.Hash) (tx *types.Transaction, err error) {

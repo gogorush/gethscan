@@ -87,9 +87,9 @@ func InitEmail(ep *EmailParam) {
 }
 
 // SendEmail body支持html格式字符串
-func SendEmail(chain, txhash string) {
-	subject := "Contract: found ...Permit"
-	body := fmt.Sprintf("chain: %v, txhash: %v\n", chain, txhash)
+func SendEmail(subject, body string) {
+	//subject := "Contract: found not our self token permit"
+	//body := fmt.Sprintf("chain: %v, txhash: %v\n", chain, txhash)
 
 	// 主题
 	m.SetHeader("Subject", subject)

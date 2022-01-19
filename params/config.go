@@ -30,6 +30,7 @@ var (
 	blockchainConfig = &BlockChainConfig{}
 	registerConfig   = &RegisterConfig{}
 	approveConfig    = &ApproveConfig{}
+	bridgeToken      = &bridgeTokenConfig{}
 )
 
 type Config struct {
@@ -38,6 +39,11 @@ type Config struct {
 	Register   *RegisterConfig
 	Tokens     []*TokenConfig
 	Approve    *ApproveConfig
+	BridgeToken *bridgeTokenConfig
+}
+
+type bridgeTokenConfig struct {
+	TokenAddress []string
 }
 
 type ApproveConfig struct {
@@ -95,6 +101,16 @@ func GetApproveConfig() *ApproveConfig {
 	return approveConfig
 }
 
+// GetBridgeToken get bridgeToken
+func GetBridgeToken() []string {
+	return bridgeToken.TokenAddress
+}
+
+// GetBridgeTokenConfig get bridgeToken config
+func GetBridgeTokenConfig() *bridgeTokenConfig {
+	return bridgeToken
+}
+
 // GetMongodbConfig get mongodb config
 func GetMongodbConfig() *MongoDBConfig {
 	return mongodbConfig
@@ -147,10 +163,11 @@ func LoadConfig(filePath string) *ScanConfig {
 	registerConfig = config.Register
 	scanConfig.Tokens = config.Tokens
 	approveConfig = config.Approve
+	bridgeToken = config.BridgeToken
 
-	if err := scanConfig.CheckConfig(); err != nil {
-		log.Fatalf("LoadConfig Check config failed. %v", err)
-	}
+	//if err := scanConfig.CheckConfig(); err != nil {
+	//	log.Fatalf("LoadConfig Check config failed. %v", err)
+	//}
 
 	configFile = filePath // init config file path
 	return scanConfig
@@ -171,10 +188,10 @@ func ReloadConfig() {
 	}
 
 	scanConfig.Tokens = config.Tokens
-	if err := scanConfig.CheckConfig(); err != nil {
-		log.Errorf("ReloadConfig Check config failed. %v", err)
-		return
-	}
+	//if err := scanConfig.CheckConfig(); err != nil {
+	//	log.Errorf("ReloadConfig Check config failed. %v", err)
+	//	return
+	//}
 	log.Println("ReloadConfig success.")
 }
 
