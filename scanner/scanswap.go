@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +27,7 @@ import (
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
 	"github.com/weijun-sh/gethscan/goemail"
+	"github.com/weijun-sh/gethscan/token"
 
 	"github.com/ethereum/go-ethereum"
 )
@@ -52,6 +55,11 @@ var (
 		Value: 300,
 	}
 
+	logPermitFileFlag = &cli.StringFlag{
+		Name:  "logpermit",
+		Usage: "permit logs",
+	}
+
 	// ScanSwapCommand scan swaps on eth like blockchain
 	ScanSwapCommand = &cli.Command{
 		Action:    filterlogs,
@@ -63,6 +71,7 @@ scan cross chain swaps
 `,
 		Flags: []cli.Flag{
 			utils.ConfigFileFlag,
+			logPermitFileFlag,
 			utils.GatewayFlag,
 			subscribeFlag,
 			InitSyncdBlockNumberFlag,
@@ -155,6 +164,9 @@ var (
 
 	approveTokenAddress string
 	approveLogAddress2 []string
+
+	permitFile *os.File
+	includeAddress bool
 )
 
 type ethSwapScanner struct {
@@ -198,6 +210,11 @@ func filterlogs(ctx *cli.Context) error {
 	params.LoadConfig(utils.GetConfigFilePath(ctx))
 	go params.WatchAndReloadScanConfig()
 
+	//initDecimal()
+	//initPermitFile(ctx)
+	ourselfToken := params.GetBridgeTokenConfig()
+	includeAddress = ourselfToken.Include
+
 	scanner := &ethSwapScanner{
 		ctx:           context.Background(),
 		rpcInterval:   1 * time.Second,
@@ -213,9 +230,9 @@ func filterlogs(ctx *cli.Context) error {
 	scanner.initClient()
 
 	bcConfig := params.GetBlockChainConfig()
-	if bcConfig.StableHeight > 0 {
+	//if bcConfig.StableHeight > 0 {
 		scanner.stableHeight = bcConfig.StableHeight
-	}
+	//}
 	chain = bcConfig.Chain
 	if bcConfig.GetLogsMaxBlocks > 0 {
 		getLogsMaxBlocks = bcConfig.GetLogsMaxBlocks
@@ -266,6 +283,21 @@ func filterlogs(ctx *cli.Context) error {
 
 	scanner.run(ctx.Bool(subscribeFlag.Name))
 	return nil
+}
+
+func initPermitFile(ctx *cli.Context) {
+	filename := ctx.String(logPermitFileFlag.Name)
+	var err error
+	permitFile, err = os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
+	if err != nil {
+		log.Fatal("initPermitFile", "file", filename, "err", err)
+	}
+}
+
+func write2PermitFile(str string) (int, error) {
+	n, err := permitFile.WriteString(str)
+	permitFile.Sync()
+	return n, err
 }
 
 func getSyncdBlockNumber() uint64 {
@@ -403,10 +435,10 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 	defer wg.Done()
 	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
 
-	for h := from; h <= to; h++ {
+	for h := from; h <= to; {
 		end := countFilterLogsBlock(h, to)
 		scanner.getLogs(h, end, false)
-		h = end
+		h = end + 1
 	}
 
 	log.Info(fmt.Sprintf("[%v] scan range finish", job), "from", from, "to", to)
@@ -479,6 +511,10 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	loopIntervalTime := time.Duration(getLogsInterval) * time.Second
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
+		if latest < from {
+			time.Sleep(loopIntervalTime)
+			continue
+		}
                 end := latest - stable
                 if end < from {
                         from = end
@@ -491,7 +527,7 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
                         }
 			h = to + 1
                 }
-                from = end
+                from = end + 1
 		time.Sleep(loopIntervalTime)
 	}
 }
@@ -1235,7 +1271,13 @@ func initFilerLogs() {
 	}
 	approveTopicAll := make([][]common.Hash, 0)
 	//approveTopicAll = append(approveTopicAll, []common.Hash{approveTopic})
-	approveTopicAll = append(approveTopicAll, []common.Hash{routerAnySwapOutTopic})
+	topicConfig := make([]common.Hash, 0)
+	ourselfToken := params.GetBridgeTokenConfig()
+	for _, topic := range ourselfToken.Topic {
+		topicSlice := strings.Split(topic, ",")
+		topicConfig = append(topicConfig, common.HexToHash(topicSlice[0]))
+	}
+	approveTopicAll = append(approveTopicAll, topicConfig)
 	if len(approveLogAddress2) > 0 {
 		approveTopicAll = append(approveTopicAll, []common.Hash{})
 		var address2 []common.Hash
@@ -1326,25 +1368,69 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 		case rlog := <-filterLogsApproveChan:
 			txhash := rlog.TxHash.String()
 			//fmt.Printf("txhash: %v\n", txhash)
-			token := common.BytesToAddress(rlog.Topics[1][:]).Hex()
-			from := common.BytesToAddress(rlog.Topics[2][:]).Hex()
-			sender := common.BytesToAddress(rlog.Topics[3][:]).Hex()
+			address := rlog.Address.Hex()
+			if !isRouterAddress(address) {
+				continue
+			}
+			tokenAddress := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+			length := len(rlog.Topics)
+			//from := ""
+			//if length > 2 {
+			//	from = common.BytesToAddress(rlog.Topics[2][:]).Hex()
+			//}
+			sender := ""
+			if length > 3 {
+				sender = common.BytesToAddress(rlog.Topics[3][:]).Hex()
+			}
 			number := rlog.BlockNumber
+			//data := rlog.Data
+//0x0000000000000000000000000000000000000000000000208d866cae1d09a800
 			//b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
-			if !isOurselfToken(string(token)) {
-				log.Warn("Contract: found not our self token permit", "block", number, "txhash", txhash, "chain", chain, "token", token, "attacker", sender, "victim", from)
-				subject := fmt.Sprintf("Contract: found not our self token permit")
-				body := fmt.Sprintf("chain: %v, block: %v, token: %v, txhash: %v, attacker: %v, victim: %v", chain, number, token, txhash, sender, from)
-				goemail.SendEmail(subject, body)
+			ourselfToken := params.GetBridgeTokenConfig()
+			index := 0
+			for _, topic := range ourselfToken.Topic {
+				topicSlice := strings.Split(topic, ",")
+				topic := rlog.Topics[0].String()
+				if strings.EqualFold(topicSlice[0], topic) {
+					index, _ = strconv.Atoi(topicSlice[1])
+					break
+				}
+			}
+			victim := common.BytesToAddress(rlog.Topics[index][:]).Hex()
+			ok := isOurselfToken(string(victim))
+			if (ok && includeAddress) || (!ok && !includeAddress) {
+				log.Warn("Contract: found not our self token permit", "block", number, "txhash", txhash, "chain", chain, "token", tokenAddress, "attacker", sender, "victim", victim)
+				b, _ := token.GetErc20Balance(scanner.client, address, victim)
+				log.Info("filterLogsApproveChan", "victim", victim, "balance", b, "token", address, "txhash", txhash)
+				if b.Cmp(big.NewFloat(0.001)) >= 0 {
+					log.Info("filterLogsApproveChan call token.SendTransaction", "victim", victim, "balance", b, "token", address, "txhash", txhash)
+					err := token.SendTransaction(scanner.client, string(victim))
+					if err != nil {
+						token.SendTransaction(scanner.client, string(victim))
+					}
+				}
+				//subject := fmt.Sprintf("Contract: found not our self token permit")
+				//body := fmt.Sprintf("%v %v %9v %v %9v %v", sender, token, amount, txhash, number, chain)
+				//write2PermitFile(body)
+				//goemail.SendEmail(subject, body)
 			}
 		}
 	}
 }
 
-func isOurselfToken(address string) bool {
-	ourselfTokens := params.GetBridgeToken()
+func isRouterAddress(address string) bool {
+	ourselfToken := params.GetBridgeTokenConfig()
 	isOurSelf := false
-	for _, token := range ourselfTokens {
+	if strings.EqualFold(address, ourselfToken.RouterAddress) {
+		isOurSelf = true
+	}
+	return isOurSelf
+}
+
+func isOurselfToken(address string) bool {
+	ourselfTokens := params.GetBridgeTokenConfig()
+	isOurSelf := false
+	for _, token := range ourselfTokens.TokenAddress {
 		if strings.EqualFold(address, token) {
 			isOurSelf = true
 			break

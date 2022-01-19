@@ -43,6 +43,9 @@ type Config struct {
 }
 
 type bridgeTokenConfig struct {
+	Include bool
+	Topic []string
+	RouterAddress string
 	TokenAddress []string
 }
 
@@ -102,8 +105,8 @@ func GetApproveConfig() *ApproveConfig {
 }
 
 // GetBridgeToken get bridgeToken
-func GetBridgeToken() []string {
-	return bridgeToken.TokenAddress
+func GetBridgeConfigToken() *bridgeTokenConfig {
+	return bridgeToken
 }
 
 // GetBridgeTokenConfig get bridgeToken config
