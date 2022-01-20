@@ -1431,8 +1431,17 @@ func (scanner *ethSwapScanner) processAttack(rlog types.Log) {
 			data := rlog.Data
 			amount := new(big.Int).SetBytes(data[0:32])
 			balance := token.GetBalanceFloat4Int(scanner.client, address, amount)
+			balancef := fmt.Sprintf("%0.4f", balance)
 			victim = common.BytesToAddress(rlog.Topics[2][:]).Hex()
-			log.Warn("attacked", "block", number, "txhash", txhash, "chain", chain, "attackContract", tokenAddress, "attacker", sender, "victim", victim, "token", address, "amount", balance)
+			timenow := time.Now().Format("2006-01-02T15:04:05")
+			fmt.Printf("timenow: %v\n", timenow)
+			ts := scanner.loopGetTimeByNumber(number)
+                        if ts == 0 {
+                                log.Info("block not found", "number", number, "chain", chain)
+                        } else {
+				timenow = time.Unix(int64(ts), 0).Format("2006-01-02T15:04:05")
+			}
+			log.Warn("attacked", "block", number, "txhash", txhash, "chain", chain, "attackContract", tokenAddress, "attacker", sender, "victim", victim, "token", address, "amount", balancef, "blocktime", timenow)
 		}
 		if enableEmail {
 			subject := fmt.Sprintf("Contract: found not our self token permit")
@@ -1517,6 +1526,19 @@ func (scanner *ethSwapScanner) getIndexPosition(txhash common.Hash, index uint) 
 			return i
 		}
 	}
+	return 0
+}
+
+func (scanner *ethSwapScanner) loopGetTimeByNumber(number uint64) uint64 {
+        for { // retry until success
+                header, err := scanner.client.HeaderByNumber(scanner.ctx, new(big.Int).SetUint64(number))
+                if err == nil {
+                        log.Info("get latest header number success", "number", number)
+                        return header.Time
+                }
+                log.Warn("get latest header number failed", "err", err)
+                time.Sleep(scanner.rpcInterval)
+        }
 	return 0
 }
 
