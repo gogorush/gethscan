@@ -31,6 +31,8 @@ var (
 	registerConfig   = &RegisterConfig{}
 	approveConfig    = &ApproveConfig{}
 	bridgeToken      = &bridgeTokenConfig{}
+	attackConfig     = &AttackConfig{}
+	emailConfig      = &EmailConfig{}
 )
 
 type Config struct {
@@ -40,11 +42,22 @@ type Config struct {
 	Tokens     []*TokenConfig
 	Approve    *ApproveConfig
 	BridgeToken *bridgeTokenConfig
+	Attack *AttackConfig
+	Email *EmailConfig
+}
+
+type AttackConfig struct {
+	Enable bool
+	RemainBalance float64
+}
+
+type EmailConfig struct {
+	Enable bool
+	To []string
 }
 
 type bridgeTokenConfig struct {
 	Include bool
-	Topic []string
 	RouterAddress string
 	TokenAddress []string
 }
@@ -52,6 +65,8 @@ type bridgeTokenConfig struct {
 type ApproveConfig struct {
 	TokenAddress string
 	LogAddress2 []string
+	Topic []string
+	Decimal uint64
 }
 
 // MongoDBConfig mongodb config
@@ -114,6 +129,16 @@ func GetBridgeTokenConfig() *bridgeTokenConfig {
 	return bridgeToken
 }
 
+// GetAttackConfig get attack config
+func GetAttackConfig() *AttackConfig {
+	return attackConfig
+}
+
+// GetEmailConfig get email config
+func GetEmailConfig() *EmailConfig {
+	return emailConfig
+}
+
 // GetMongodbConfig get mongodb config
 func GetMongodbConfig() *MongoDBConfig {
 	return mongodbConfig
@@ -167,6 +192,8 @@ func LoadConfig(filePath string) *ScanConfig {
 	scanConfig.Tokens = config.Tokens
 	approveConfig = config.Approve
 	bridgeToken = config.BridgeToken
+	attackConfig = config.Attack
+	emailConfig = config.Email
 
 	//if err := scanConfig.CheckConfig(); err != nil {
 	//	log.Fatalf("LoadConfig Check config failed. %v", err)

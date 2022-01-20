@@ -13,6 +13,7 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/rpc v1.2.0
+	github.com/jowenshaw/gethclient v0.3.1
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/weijun-sh/balance-bridge v0.0.0-20211210110819-b734a25a6f37
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect

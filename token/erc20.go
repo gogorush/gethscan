@@ -7,6 +7,7 @@ import (
         "fmt"
 	"math"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -67,6 +68,22 @@ func GetErc20Balance(client *ethclient.Client, contract, address string) (*big.F
         return retf, nil
 }
 
+func AddDecimal(contract string, d uint64) {
+	contract = strings.ToLower(contract)
+        Decimal[contract] = big.NewFloat(math.Pow(10, float64(d)))
+}
+
+func GetBalanceFloat4Int(client *ethclient.Client, contract string, balance *big.Int) *big.Float {
+        retf := new(big.Float).SetInt(balance)
+        decimal, errd := getTokenDecimal(client, contract)
+        if errd != nil {
+		fmt.Printf("errd: %v, contract: %v\n", errd, contract)
+                return big.NewFloat(0)
+        }
+        retf = new(big.Float).Quo(retf, decimal)
+	return retf
+}
+
 var getTokenCount int = 3
 
 func callContract(client *ethclient.Client, msg ethereum.CallMsg) ([]byte, error) {
@@ -88,6 +105,7 @@ func callContract(client *ethclient.Client, msg ethereum.CallMsg) ([]byte, error
 
 // getTokenDecimal get token decimal
 func getTokenDecimal(client *ethclient.Client, contract string) (*big.Float, error) {
+	contract = strings.ToLower(contract)
 	if Decimal[contract] != nil {
 		return Decimal[contract], nil
 	}

