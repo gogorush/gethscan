@@ -1325,7 +1325,7 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 			}
 			scanner.postRouterSwap(txhash, logIndex, token)
 		case rlog := <-filterLogsApproveChan:
-			if !bytes.Equal([]byte(rlog.Address.String()), []byte(approveTokenAddress)) {
+			if !strings.EqualFold(rlog.Address.String(), approveTokenAddress) {
 				continue
 			}
 			txhash := rlog.TxHash.String()

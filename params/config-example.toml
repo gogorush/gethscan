@@ -4,7 +4,7 @@ DBURL = "localhost:27017"
 DBName = "post"
 UserName = "poster"
 Password = "post123456"
-Enable = true
+Enable = false
 
 [BlockChain]
 Chain = "ftm"
@@ -23,47 +23,4 @@ TokenAddress = "0xaF0A46d3700E23a98F38079cE217742c92aa66aC"
 LogAddress2 = [
 	#"0xaF0A46d3700E23a98F38079cE217742c92aa66aC", # anyBNB
 ]
-
-[[Tokens]]
-TxType = "swapin"
-PairID = "eth"
-SwapServer = "http://127.0.0.1:11556/rpc"
-TokenAddress = "native"
-DepositAddress = "0xaF0A46d3700E23a98F38079cE217742c92aa66aC"
-Whitelist = []
-
-[[Tokens]]
-TxType = "swapout"
-PairID = "bsc"
-SwapServer = "http://127.0.0.1:33556/rpc"
-TokenAddress = "0x71b8c4d7d28d5f7edadbea5457db3b4f7f837b74"
-Whitelist = []
-
-[[Tokens]]
-TxType = "swapout2"
-PairID = "btc"
-SwapServer = "http://127.0.0.1:44556/rpc"
-TokenAddress = "0x81b8c4d8d28d5f8edadbea5458db3b4f8f838b84"
-Whitelist = []
-
-[[Tokens]]
-TxType = "routerswap"
-ChainID = "1"
-SwapServer = "http://127.0.0.1:55556/rpc"
-RouterContract = "0x6b7a87899490ece95443e979ca9485cbe7e71522"
-Whitelist = []
-
-[[Tokens]]
-TxType = "nftswap"
-ChainID = "1"
-SwapServer = "http://127.0.0.1:66556/rpc"
-RouterContract = "0x5F69b7Ab8F7cAb199a310Fd5A27B43Fef44ddcC0"
-Whitelist = []
-
-[[Tokens]]
-TxType = "anycallswap"
-ChainID = "1"
-SwapServer = "http://127.0.0.1:66556/rpc"
-RouterContract = "0x5F69b7Ab8F7cAb199a310Fd5A27B43Fef44ddcC0"
-Whitelist = []
 
