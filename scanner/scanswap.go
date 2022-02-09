@@ -664,6 +664,11 @@ func rpcPost(swap *swapPost) error {
 
 	if err != nil {
 		if isRouterSwap {
+			if strings.Contains(err.Error(), routerSwapExistResult) ||
+			   strings.Contains(err.Error(), routerSwapExistResultTmp) {
+				log.Info("post router swap already exist", "swap", args)
+				return nil
+			}
 			log.Warn("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
 			return err
 		}
