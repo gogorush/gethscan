@@ -103,6 +103,8 @@ const (
 	errMaximumRequestLimit         = "You have reached maximum request limit"
 	rpcQueryErrKeywords            = "rpc query error"
 	errDepositLogNotFountorRemoved = "return error: json-rpc error -32099, verify swap failed! deposit log not found or removed"
+	swapIsClosedResult             = "swap is closed"
+	swapTradeNotSupport            = "swap trade not support"
 )
 
 var startHeightArgument int64
@@ -782,9 +784,7 @@ func rpcPost(swap *swapPost) error {
         err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.swapServer, swap.rpcMethod, args)
 
         if err != nil {
-		if strings.Contains(err.Error(), routerSwapExistResult) ||
-			strings.Contains(err.Error(), routerSwapExistResultTmp) {
-                        log.Info("post swap already exist", "swap", args)
+		if checkSwapPostError(err, args) == nil {
 			return nil
 		}
                 if isRouterSwap {
@@ -825,6 +825,23 @@ func rpcPost(swap *swapPost) error {
 		return err
         }
 	return checkRouterStatus(status, args)
+}
+
+func checkSwapPostError(err error, args interface{}) error {
+	if strings.Contains(err.Error(), routerSwapExistResult) ||
+		strings.Contains(err.Error(), routerSwapExistResultTmp) {
+                log.Info("post swap already exist", "swap", args)
+		return nil
+	}
+	if strings.Contains(err.Error(), swapIsClosedResult) {
+		log.Info("post router swap failed, swap is closed", "swap", args)
+		return nil
+	}
+	if strings.Contains(err.Error(), swapTradeNotSupport) {
+		log.Info("post router swap failed, swap trade not support", "swap", args)
+		return nil
+	}
+	return err
 }
 
 func checkRouterStatus(status string, args interface{}) error {
