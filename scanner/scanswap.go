@@ -782,13 +782,18 @@ func rpcPost(swap *swapPost) error {
         err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, swap.swapServer, swap.rpcMethod, args)
 
         if err != nil {
+		if strings.Contains(err.Error(), routerSwapExistResult) ||
+			strings.Contains(err.Error(), routerSwapExistResultTmp) {
+                        log.Info("post swap already exist", "swap", args)
+			return nil
+		}
                 if isRouterSwap {
                         log.Warn("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
                         return err
                 }
                 if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
-                        err = nil // ignore this kind of error
-                        log.Info("post bridge swap already exist", "swap", args)
+			log.Info("post bridge swap already exist", "swap", args)
+			err = nil // ignore this kind of error
                 } else {
                         log.Warn("post bridge swap failed", "swap", args, "server", swap.swapServer, "err", err)
                 }
@@ -819,15 +824,21 @@ func rpcPost(swap *swapPost) error {
 		}
 		return err
         }
-        switch status {
-        case postSwapSuccessResult:
-                log.Info("post router swap success", "swap", args)
-        case routerSwapExistResult, routerSwapExistResultTmp:
-                log.Info("post router swap already exist", "swap", args)
-        default:
-                err = errors.New(status)
-                log.Info("post router swap failed", "swap", args, "server", swap.swapServer, "err", err)
-        }
+	return checkRouterStatus(status, args)
+}
+
+func checkRouterStatus(status string, args interface{}) error {
+	if strings.Contains(status, postSwapSuccessResult) {
+		log.Info("post router swap success", "swap", args)
+		return nil
+	}
+	if strings.Contains(status, routerSwapExistResult) ||
+		strings.Contains(status, routerSwapExistResultTmp) {
+		log.Info("post router swap already exist", "swap", args)
+		return nil
+	}
+	err := errors.New(status)
+        log.Info("post router swap failed", "swap", args, "err", err)
         return err
 }
 
@@ -865,7 +876,9 @@ func rpcPostRegister(swap *swapPost) error {
 	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, registerServer, register, args)
 
 	if err != nil {
-		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
+		if strings.Contains(err.Error(), bridgeSwapExistKeywords) ||
+			strings.Contains(err.Error(), routerSwapExistResult) ||
+			strings.Contains(err.Error(), routerSwapExistResultTmp) {
 			err = nil // ignore this kind of error
 			log.Info("post bridge swap register already exist", "swap", args)
 		} else {
@@ -1104,10 +1117,12 @@ func InitMongodb() {
 
 func (scanner *ethSwapScanner) loopSwapPending() {
 	log.Info("start SwapPending loop job")
+	offset := 0
 	for {
-		sp, err := mongodb.FindAllSwapPending(chain, 0, 10)
+		sp, err := mongodb.FindAllSwapPending(chain, offset, 10)
 		lenPending := len(sp)
 		if err != nil || lenPending == 0 {
+			offset = 0
 			time.Sleep(20 * time.Second)
 			continue
 		}
@@ -1134,7 +1149,9 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 				}
 			}
 		}
-		if lenPending < 5 {
+		offset += 10
+		if lenPending < 10 {
+			offset = 0
 			time.Sleep(10 * time.Second)
 		}
 		time.Sleep(1 * time.Second)
