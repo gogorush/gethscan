@@ -105,6 +105,7 @@ const (
 	errDepositLogNotFountorRemoved = "return error: json-rpc error -32099, verify swap failed! deposit log not found or removed"
 	swapIsClosedResult             = "swap is closed"
 	swapTradeNotSupport            = "swap trade not support"
+	txWithWrongContract            = "tx with wrong contract"
 )
 
 var startHeightArgument int64
@@ -852,6 +853,10 @@ func checkRouterStatus(status string, args interface{}) error {
 	if strings.Contains(status, routerSwapExistResult) ||
 		strings.Contains(status, routerSwapExistResultTmp) {
 		log.Info("post router swap already exist", "swap", args)
+		return nil
+	}
+	if strings.Contains(status, txWithWrongContract) {
+		log.Info("post router swap failed, tx with wrong contract", "swap", args)
 		return nil
 	}
 	err := errors.New(status)
