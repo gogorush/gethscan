@@ -105,27 +105,14 @@ func findAllSwapPending(chain string) *mgo.Iter {
 }
 
 // FindAllTokenAccounts find accounts
-func FindAllSwapPending(chain string) []*MgoSwap {
-	iter := findAllSwapPending(chain)
-	var tmp MgoSwap
-	var result []*MgoSwap
-	for iter.Next(&tmp) {
-		sp := deepCopy(&tmp)
-		result = append(result, sp)
+func FindAllSwapPending(chain string, offset, limit int) ([]*MgoSwap, error) {
+	result := make([]*MgoSwap, 0, limit)
+	q := collectionSwapPending.Find(bson.M{"chain": chain}).Skip(offset).Limit(limit)
+	err := q.All(&result)
+	if err != nil {
+		return nil, err
 	}
-	return result
-}
-
-func deepCopy(swap *MgoSwap) *MgoSwap {
-	sp := MgoSwap{}
-	sp.Id = swap.Id
-	sp.Txid = swap.Txid
-	sp.PairID = swap.PairID
-	sp.RpcMethod = swap.RpcMethod
-	sp.SwapServer = swap.SwapServer
-	sp.Chain = swap.Chain
-	sp.Timestamp = swap.Timestamp
-	return &sp
+	return result, nil
 }
 
 func UpdateSwapPending(swap *MgoSwap) {
