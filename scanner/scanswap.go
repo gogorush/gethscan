@@ -189,6 +189,7 @@ func scanSwap(ctx *cli.Context) error {
 	if bcConfig.SyncNumber > 0 {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
+	scanner.stableHeight = bcConfig.StableHeight
 
        //mongo
 	mgoConfig := params.GetMongodbConfig()

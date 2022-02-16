@@ -45,6 +45,7 @@ type MongoDBConfig struct {
 
 type BlockChainConfig struct {
 	Chain string
+	StableHeight uint64
 	SyncNumber uint64
 }
 
