@@ -472,67 +472,58 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	loopIntervalTime := time.Duration(getLogsInterval) * time.Second
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
-                end := latest - stable
-                if end < from {
-                        from = end
-                }
-                for h := from; h <= end; {
-			to := countFilterLogsBlock(h, end)
+                for h := from; h <= latest; {
+			to := countFilterLogsBlock(h, latest)
 			scanner.getLogs(h, to, true)
                         if mongodbEnable {
                                 updateSyncdBlockNumber(h, to)
                         }
 			h = to + 1
                 }
-                from = end
+		if from+stable < latest {
+			from = latest - stable
+		}
 		time.Sleep(loopIntervalTime)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapin(from, to uint64) {
+func (scanner *ethSwapScanner) getLogsSwapin(from, to uint64, cache bool) {
 	if len(fqSwapin.Addresses) > 0 {
-		scanner.filterLogs(from, to, fqSwapin, filterLogsSwapinChan)
+		scanner.filterLogs(from, to, fqSwapin, filterLogsSwapinChan, cache)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapout(from, to uint64) {
+func (scanner *ethSwapScanner) getLogsSwapout(from, to uint64, cache bool) {
 	if len(fqSwapout.Addresses) > 0 {
-		scanner.filterLogs(from, to, fqSwapout, filterLogsSwapoutChan)
+		scanner.filterLogs(from, to, fqSwapout, filterLogsSwapoutChan, cache)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouter(from, to uint64) {
+func (scanner *ethSwapScanner) getLogsSwapRouter(from, to uint64, cache bool) {
 	if len(fqSwapRouter.Addresses) > 0 {
-		scanner.filterLogs(from, to, fqSwapRouter, filterLogsRouterChan)
+		scanner.filterLogs(from, to, fqSwapRouter, filterLogsRouterChan, cache)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouterNFT(from, to uint64) {
+func (scanner *ethSwapScanner) getLogsSwapRouterNFT(from, to uint64, cache bool) {
 	if len(fqSwapRouterNFT.Addresses) > 0 {
-		scanner.filterLogs(from, to, fqSwapRouterNFT, filterLogsRouterNFTChan)
+		scanner.filterLogs(from, to, fqSwapRouterNFT, filterLogsRouterNFTChan, cache)
 	}
 }
 
-func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64) {
+func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64, cache bool) {
 	if len(fqSwapRouterAnycall.Addresses) > 0 {
-		scanner.filterLogs(from, to, fqSwapRouterAnycall, filterLogsRouterAnycallChan)
+		scanner.filterLogs(from, to, fqSwapRouterAnycall, filterLogsRouterAnycallChan, cache)
 	}
 }
 
 func (scanner *ethSwapScanner) getLogs(from, to uint64, cache bool) {
 	log.Info("getLogs", "block from", from, "to", to)
-	//if cache {
-	//	blockhash := logs[0].BlockHash.String()
-	//	if cachedBlocks.isScanned(blockhash) {
-	//		break
-	//	}
-	//	cachedBlocks.addBlock(blockhash)
-	//}
-	scanner.getLogsSwapin(from, to)
-	scanner.getLogsSwapout(from, to)
-	scanner.getLogsSwapRouter(from, to)
-	scanner.getLogsSwapRouterNFT(from, to)
-	scanner.getLogsSwapRouterAnycall(from, to)
+	scanner.getLogsSwapin(from, to, cache)
+	scanner.getLogsSwapout(from, to, cache)
+	scanner.getLogsSwapRouter(from, to, cache)
+	scanner.getLogsSwapRouterNFT(from, to, cache)
+	scanner.getLogsSwapRouterAnycall(from, to, cache)
 }
 
 func rewriteSyncdBlockNumber(number uint64) {
@@ -607,7 +598,7 @@ func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, 
 	return nil, err
 }
 
-func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQuery, ch chan types.Log) {
+func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQuery, ch chan types.Log, cache bool) {
 	ctx := context.Background()
 	fq.FromBlock = big.NewInt(int64(from))
 	fq.ToBlock = big.NewInt(int64(to))
@@ -615,8 +606,13 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
 		logs, err := scanner.client.FilterLogs(ctx, fq)
 		if err == nil {
 			//log.Info("filterLogs", "block from", from, "to", to, "logs", logs)
-			for _, l := range logs {
-				ch <- l
+			for _, log := range logs {
+				blockhash := log.BlockHash.String()
+				if cache && cachedBlocks.isScanned(blockhash) {
+					continue
+				}
+				cachedBlocks.addBlock(blockhash)
+				ch <- log
 			}
 			//log.Info("filterLogs success", "block", height)
 			return
