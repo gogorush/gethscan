@@ -401,6 +401,7 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 		end := countFilterLogsBlock(h, to)
 		scanner.getLogs(h, end, false)
 		h = end
+		time.Sleep(time.Second * 1)
 	}
 
 	log.Info(fmt.Sprintf("[%v] scan range finish", job), "from", from, "to", to)
@@ -479,6 +480,7 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
                                 updateSyncdBlockNumber(h, to)
                         }
 			h = to + 1
+			time.Sleep(time.Second * 1)
                 }
 		if from+stable < latest {
 			from = latest - stable
