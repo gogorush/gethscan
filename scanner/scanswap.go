@@ -227,6 +227,9 @@ func getSyncdBlockNumber() uint64 {
 }
 
 func (scanner *ethSwapScanner) initClient() {
+	if isXRP(chain) {
+		return
+	}
 	ethcli, err := ethclient.Dial(scanner.gateway)
 	if err != nil {
 		log.Fatal("ethclient.Dail failed", "gateway", scanner.gateway, "err", err)
@@ -367,12 +370,21 @@ func updateSyncdBlockNumber(number uint64) {
 
 func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 	for { // retry until success
-		header, err := scanner.client.HeaderByNumber(scanner.ctx, nil)
-		if err == nil {
-			log.Info("get latest block number success", "height", header.Number)
-			return header.Number.Uint64()
+		if isXRP(chain) {
+			header, err := GetLatestBlockNumber_XRP(URL_xrp)
+			if err == nil {
+				log.Info("get latest block number success", "height", header)
+				return header
+			}
+			log.Warn("get latest block number failed", "err", err)
+		} else {
+			header, err := scanner.client.HeaderByNumber(scanner.ctx, nil)
+			if err == nil {
+				log.Info("get latest block number success", "height", header.Number)
+				return header.Number.Uint64()
+			}
+			log.Warn("get latest block number failed", "err", err)
 		}
-		log.Warn("get latest block number failed", "err", err)
 		time.Sleep(scanner.rpcInterval)
 	}
 }
@@ -406,6 +418,42 @@ func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, 
 }
 
 func (scanner *ethSwapScanner) scanBlock(job, height uint64, cache bool) {
+	if isXRP(chain) {
+		scanner.scanBlockXRP(job, height, cache)
+	} else {
+		scanner.scanBlockETH(job, height, cache)
+	}
+}
+
+func (scanner *ethSwapScanner) scanBlockXRP(job, height uint64, cache bool) {
+	block, err := GetBlock_XRP(URL_xrp, height)
+	if err != nil {
+		return
+	}
+	blockHash := block.Hash
+	if cache && cachedBlocks.isScanned(blockHash) {
+		return
+	}
+	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", len(block.Transactions))
+
+	scanner.processBlockTimers[job].Reset(scanner.processBlockTimeout)
+SCANTXS:
+	for i, tx := range block.Transactions {
+		select {
+		case <-scanner.processBlockTimers[job].C:
+			log.Warn(fmt.Sprintf("[%v] scan block %v timeout", job, height), "hash", blockHash, "txs", len(block.Transactions))
+			break SCANTXS
+		default:
+			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", tx)
+			scanner.scanTransactionXRP(tx)
+		}
+	}
+	if cache {
+		cachedBlocks.addBlock(blockHash)
+	}
+}
+
+func (scanner *ethSwapScanner) scanBlockETH(job, height uint64, cache bool) {
 	block, err := scanner.loopGetBlock(height)
 	if err != nil {
 		return
@@ -433,6 +481,24 @@ SCANTXS:
 	}
 }
 
+func (scanner *ethSwapScanner) scanTransactionXRP(txhash string) {
+	tx, err := GetTx_XRP(URL_xrp, txhash)
+	if err != nil {
+		return
+	}
+
+	if tx.Destination == "" {
+		return
+	}
+
+	for _, tokenCfg := range params.GetScanConfig().Tokens {
+		verifyErr := scanner.verifyTransactionXRP(tx, tokenCfg)
+		if verifyErr != nil {
+			log.Debug("verify tx failed", "txHash", txhash, "err", verifyErr)
+		}
+	}
+}
+
 func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
 	if tx.To() == nil {
 		return
@@ -446,6 +512,52 @@ func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
 			log.Debug("verify tx failed", "txHash", txHash, "err", verifyErr)
 		}
 	}
+}
+
+func (scanner *ethSwapScanner) checkTxToAddressXRP(tx *txResultConfig, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
+	needReceipt := scanner.scanReceipt
+	txtoAddress := tx.Destination
+
+	var cmpTxTo string
+	if tokenCfg.IsRouterSwap() {
+		cmpTxTo = tokenCfg.RouterContract
+		needReceipt = true
+	} else if tokenCfg.IsNativeToken() {
+		cmpTxTo = tokenCfg.DepositAddress
+	} else {
+		cmpTxTo = tokenCfg.TokenAddress
+		if tokenCfg.CallByContract != "" {
+			cmpTxTo = tokenCfg.CallByContract
+			needReceipt = true
+		}
+	}
+
+	if strings.EqualFold(txtoAddress, cmpTxTo) {
+		isAcceptToAddr = true
+	} else if !tokenCfg.IsNativeToken() {
+		for _, whiteAddr := range tokenCfg.Whitelist {
+			if strings.EqualFold(txtoAddress, whiteAddr) {
+				isAcceptToAddr = true
+				needReceipt = true
+				break
+			}
+		}
+	}
+
+	if !isAcceptToAddr {
+		return nil, false
+	}
+
+	if needReceipt {
+		r, err := scanner.loopGetTxReceipt(common.HexToHash(tx.Hash))
+		if err != nil {
+			log.Warn("get tx receipt error", "txHash", tx.Hash, "err", err)
+			return nil, false
+		}
+		receipt = r
+	}
+
+	return receipt, true
 }
 
 func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
@@ -492,6 +604,48 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 	}
 
 	return receipt, true
+}
+
+func (scanner *ethSwapScanner) verifyTransactionXRP(tx *txResultConfig, tokenCfg *params.TokenConfig) (verifyErr error) {
+	_, isAcceptToAddr := scanner.checkTxToAddressXRP(tx, tokenCfg)
+	if !isAcceptToAddr {
+		return nil
+	}
+
+	txHash := tx.Hash
+
+	switch {
+	// router swap
+	//case tokenCfg.IsRouterSwap():
+	//	scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
+	//	return nil
+
+	// bridge swapin
+	case tokenCfg.DepositAddress != "":
+		if tokenCfg.IsNativeToken() {
+			scanner.postBridgeSwap(txHash, tokenCfg)
+			return nil
+		}
+
+	//	verifyErr = scanner.verifyErc20SwapinTx(tx, receipt, tokenCfg)
+	//	// swapin my have multiple deposit addresses for different bridges
+	//	if errors.Is(verifyErr, tokens.ErrTxWithWrongReceiver) {
+	//		return nil
+	//	}
+
+	//// bridge swapout
+	//default:
+	//	if scanner.scanReceipt {
+	//		verifyErr = scanner.parseSwapoutTxLogs(receipt.Logs, tokenCfg)
+	//	} else {
+	//		verifyErr = scanner.verifySwapoutTx(tx, receipt, tokenCfg)
+	//	}
+	}
+
+	if verifyErr == nil {
+		scanner.postBridgeSwap(txHash, tokenCfg)
+	}
+	return verifyErr
 }
 
 func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg *params.TokenConfig) (verifyErr error) {

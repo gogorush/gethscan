@@ -264,9 +264,9 @@ func (c *TokenConfig) CheckConfig() error {
 		if !c.IsNativeToken() && !common.IsHexAddress(c.TokenAddress) {
 			return errors.New("wrong 'TokenAddress' " + c.TokenAddress)
 		}
-		if c.DepositAddress != "" && !common.IsHexAddress(c.DepositAddress) {
-			return errors.New("wrong 'DepositAddress' " + c.DepositAddress)
-		}
+		//if c.DepositAddress != "" && !common.IsHexAddress(c.DepositAddress) {
+		//	return errors.New("wrong 'DepositAddress' " + c.DepositAddress)
+		//}
 	case c.IsRouterSwap():
 		if !common.IsHexAddress(c.RouterContract) {
 			return errors.New("wrong 'RouterContract' " + c.RouterContract)
