@@ -115,6 +115,7 @@ var (
 	syncedNumber uint64
 	syncedCount uint64
 	syncdCount2Mongodb uint64 = 100
+	synced bool = false
 )
 
 type ethSwapScanner struct {
@@ -125,6 +126,7 @@ type ethSwapScanner struct {
 
 	endHeight    uint64
 	stableHeight uint64
+	scanBackHeight uint64
 	jobCount     uint64
 
 	processBlockTimeout time.Duration
@@ -190,6 +192,7 @@ func scanSwap(ctx *cli.Context) error {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
 	scanner.stableHeight = bcConfig.StableHeight
+	scanner.scanBackHeight = bcConfig.ScanBackHeight
 
        //mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -321,6 +324,7 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
+	scanBack := scanner.scanBackHeight
 	log.Info("start scan loop job", "from", from, "stable", stable)
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
@@ -332,6 +336,12 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 		}
 		if from+stable < latest {
 			from = latest - stable
+		}
+		if synced && params.GetHaveReloadConfig() {
+			synced = false
+			from -= scanBack
+			log.Info("scanLoop scan back", "justnow", latest, "now", from)
+			params.UpdateHaveReloadConfig(false)
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -350,11 +360,13 @@ func rewriteSyncdBlockNumber(number uint64) {
 }
 
 func updateSyncdBlockNumber(number uint64) {
+	fmt.Printf("updateSyncdBlockNumber, number: %v, syncedNumber: %v, syncedCount: %v, syncdCount2Mongodb: %v\n", number, syncedNumber, syncedCount, syncdCount2Mongodb)
 	if number == syncedNumber + 1 {
 		syncedCount += 1
 		syncedNumber = number
 	}
 	if syncedCount >= syncdCount2Mongodb {
+		synced = true
 		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
 		if err == nil {
 			log.Info("updateSyncedBlockNumber", "height", syncedNumber)

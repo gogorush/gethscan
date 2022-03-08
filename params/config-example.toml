@@ -9,6 +9,7 @@ Enable = true
 [BlockChain]
 Chain = "ftm"
 StableHeight = 18
+ScanBackHeight = 100 # block number in 1.5h
 SyncNumber = 100
 
 [[Tokens]]
