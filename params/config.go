@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 	"github.com/anyswap/CrossChain-Bridge/common"
@@ -29,6 +30,9 @@ var (
 	mongodbConfig    = &MongoDBConfig{}
 	blockchainConfig = &BlockChainConfig{}
 	registerConfig   = &RegisterConfig{}
+
+	HaveReloadConfig bool = false
+	reloadMutex sync.Mutex
 )
 
 type Config struct {
@@ -50,6 +54,7 @@ type MongoDBConfig struct {
 type BlockChainConfig struct {
 	Chain        string
 	StableHeight uint64
+	ScanBackHeight uint64
 	GetLogsMaxBlocks uint64
 	GetLogsInterval uint64
 	SyncNumber   uint64
@@ -163,7 +168,20 @@ func ReloadConfig() {
 		log.Errorf("ReloadConfig Check config failed. %v", err)
 		return
 	}
+	UpdateHaveReloadConfig(true)
 	log.Println("ReloadConfig success.")
+}
+
+func UpdateHaveReloadConfig(ok bool) {
+	reloadMutex.Lock()
+	defer reloadMutex.Unlock()
+	HaveReloadConfig = ok
+}
+
+func GetHaveReloadConfig() bool {
+	reloadMutex.Lock()
+	defer reloadMutex.Unlock()
+	return HaveReloadConfig
 }
 
 // CheckConfig check scan config

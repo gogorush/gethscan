@@ -117,6 +117,7 @@ var (
 	syncedNumber       uint64
 	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
+	synced             bool = false
 	getLogsMaxBlocks   uint64 = 20
 	getLogsInterval    uint64 = 10
 
@@ -154,6 +155,7 @@ type ethSwapScanner struct {
 
 	endHeight    uint64
 	stableHeight uint64
+	scanBackHeight uint64
 	jobCount     uint64
 
 	processBlockTimeout time.Duration
@@ -469,6 +471,7 @@ func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.Fi
 
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
+	scanBack := scanner.scanBackHeight
 	log.Info("start scan loop job", "from", from, "stable", stable)
 	loopIntervalTime := time.Duration(getLogsInterval) * time.Second
 	for {
@@ -484,6 +487,12 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
                 }
 		if from+stable < latest {
 			from = latest - stable
+		}
+		if synced && params.GetHaveReloadConfig() {
+			synced = false
+			from -= scanBack
+			log.Info("scanLoop scan back", "justnow", latest, "now", from)
+			params.UpdateHaveReloadConfig(false)
 		}
 		time.Sleep(loopIntervalTime)
 	}
@@ -550,6 +559,7 @@ func updateSyncdBlockNumber(from, to uint64) {
 		syncedNumber = to
 	}
 	if syncedCount >= syncdCount2Mongodb {
+		synced = true
 		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
 		if err == nil {
 			log.Info("updateSyncdBlockNumber", "height", syncedNumber)
