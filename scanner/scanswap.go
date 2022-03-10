@@ -533,10 +533,10 @@ func rewriteSyncdBlockNumber(number uint64) {
 	syncedCount = 0
 	err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
 	if err == nil {
-		log.Info("rewriteSyncdBlockNumber", "block number", syncedNumber)
+		log.Info("rewriteSyncedBlockNumber", "block number", syncedNumber)
 		syncedCount = 0
 	} else {
-		log.Warn("rewriteSyncdBlockNumber failed", "err", err, "expect number", syncedNumber)
+		log.Warn("rewriteSyncedBlockNumber failed", "err", err, "expect number", syncedNumber)
 	}
 }
 
