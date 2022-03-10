@@ -360,7 +360,7 @@ func rewriteSyncdBlockNumber(number uint64) {
 }
 
 func updateSyncdBlockNumber(number uint64) {
-	fmt.Printf("updateSyncdBlockNumber, number: %v, syncedNumber: %v, syncedCount: %v, syncdCount2Mongodb: %v\n", number, syncedNumber, syncedCount, syncdCount2Mongodb)
+	//fmt.Printf("updateSyncdBlockNumber, number: %v, syncedNumber: %v, syncedCount: %v, syncdCount2Mongodb: %v\n", number, syncedNumber, syncedCount, syncdCount2Mongodb)
 	if number == syncedNumber + 1 {
 		syncedCount += 1
 		syncedNumber = number
