@@ -182,14 +182,14 @@ func scanSwap(ctx *cli.Context) error {
 		"timeout", scanner.processBlockTimeout,
 	)
 
-	scanner.initClient()
-
 	bcConfig := params.GetBlockChainConfig()
        chain = bcConfig.Chain
 	if bcConfig.SyncNumber > 0 {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
 	scanner.stableHeight = bcConfig.StableHeight
+
+	scanner.initClient()
 
        //mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -445,7 +445,8 @@ SCANTXS:
 			break SCANTXS
 		default:
 			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", tx)
-			scanner.scanTransactionXRP(tx)
+			go scanner.scanTransactionXRP(tx)
+			time.Sleep(20 * time.Millisecond)
 		}
 	}
 	if cache {
