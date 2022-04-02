@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/http"
+	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
@@ -17,9 +19,9 @@ import (
 	"github.com/anyswap/CrossChain-Bridge/tokens"
 	"github.com/urfave/cli/v2"
 
-	ethclient "github.com/jowenshaw/gethclient"
-	"github.com/jowenshaw/gethclient/common"
-	"github.com/jowenshaw/gethclient/types"
+	ethclient "github.com/weijun-sh/gethclient"
+	"github.com/weijun-sh/gethclient/common"
+	"github.com/weijun-sh/gethclient/types"
 
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
@@ -437,7 +439,7 @@ SCANTXS:
 			break SCANTXS
 		default:
 			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", tx.Hash().Hex())
-			scanner.scanTransaction(tx)
+			scanner.scanTransaction(height, uint64(i), tx)
 		}
 	}
 	if cache {
@@ -445,7 +447,7 @@ SCANTXS:
 	}
 }
 
-func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
+func (scanner *ethSwapScanner) scanTransaction(height, index uint64, tx *types.Transaction) {
 	if tx.To() == nil {
 		return
 	}
@@ -453,7 +455,7 @@ func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
 	txHash := tx.Hash().Hex()
 
 	for _, tokenCfg := range params.GetScanConfig().Tokens {
-		verifyErr := scanner.verifyTransaction(tx, tokenCfg)
+		verifyErr := scanner.verifyTransaction(height, index, tx, tokenCfg)
 		if verifyErr != nil {
 			log.Debug("verify tx failed", "txHash", txHash, "err", verifyErr)
 		}
@@ -506,7 +508,7 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 	return receipt, true
 }
 
-func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg *params.TokenConfig) (verifyErr error) {
+func (scanner *ethSwapScanner) verifyTransaction(height, index uint64, tx *types.Transaction, tokenCfg *params.TokenConfig) (verifyErr error) {
 	receipt, isAcceptToAddr := scanner.checkTxToAddress(tx, tokenCfg)
 	if !isAcceptToAddr {
 		return nil
@@ -543,9 +545,82 @@ func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg
 	}
 
 	if verifyErr == nil {
+		if chainIsRSK(chain) {
+			hash, err := scanner.getTxHash4RSK(height, index)
+			if err == nil {
+				txHash = hash
+			}
+		}
 		scanner.postBridgeSwap(txHash, tokenCfg)
 	}
 	return verifyErr
+}
+
+func chainIsRSK(chain string) bool {
+	return strings.EqualFold(chain, "rsk") || strings.EqualFold(chain, "30")
+}
+
+type result_getTransactionByBlockNumberAndIndex struct {
+	Result txRSK `bson:"result"`
+	Error interface{} `bson:"error"`
+}
+
+type txRSK struct {
+	Hash string
+}
+
+func (scanner *ethSwapScanner) getTxHash4RSK(height, index uint64) (string, error) {
+       //fmt.Printf("getBalance4ETH, url: %v, address: %v\n", url, address)
+        data := make(map[string]interface{})
+        data["method"] = "eth_getTransactionByBlockNumberAndIndex"
+        data["params"] = []string{"0x400a47", "0x3"}
+        data["id"] = "1"
+        data["jsonrpc"] = "2.0"
+        bytesData, err := json.Marshal(data)
+        if err != nil {
+                fmt.Println(err.Error())
+                return "", err
+        }
+        basket := result_getTransactionByBlockNumberAndIndex{}
+	var i int
+        for i = 0; i < 30; i++ {
+                reader := bytes.NewReader(bytesData)
+                resp, err := http.Post(scanner.gateway, "application/json", reader)
+                if err != nil {
+                        fmt.Println(err.Error())
+                        return "", err
+                }
+                defer resp.Body.Close()
+
+                //fmt.Printf("resp: %#v, resp.Body: %#v\n", resp, resp.Body)
+                body, err := ioutil.ReadAll(resp.Body)
+                //fmt.Printf("body: %v, string: %v\n", body, string(body))
+
+                if err != nil {
+                        fmt.Println(err.Error())
+                        return "", err
+                }
+
+                err = json.Unmarshal(body, &basket)
+                if err != nil {
+                        fmt.Println(err)
+                        return "", err
+                }
+		//fmt.Printf("%v basket.Result: %v, error: %v\n", i, basket.Result, basket.Error)
+                if basket.Error != nil {
+                        //fmt.Printf("* Error *\n\n")
+                        basket.Error = nil
+                        continue
+                } else {
+                        break
+                }
+		break
+        }
+	if i >= 30 {
+		log.Warn("getTxHash4RSK get txHash failed", "height", height, "index", index)
+		return "", errors.New("get tx failed")
+	}
+	return basket.Result.Hash, nil
 }
 
 func (scanner *ethSwapScanner) postBridgeSwap(txid string, tokenCfg *params.TokenConfig) {
