@@ -150,7 +150,6 @@ func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64, cache b
 }
 
 func (scanner *ethSwapScanner) getLogs(from, to uint64, cache bool) {
-        log.Info("getLogs", "block from", from, "to", to)
         scanner.getLogsSwapRouterAnycall(from, to, cache)
 }
 
