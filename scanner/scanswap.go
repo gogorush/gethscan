@@ -249,6 +249,8 @@ func (scanner *ethSwapScanner) run() {
 	scanner.cachedSwapPosts = tools.NewRing(100)
 	go scanner.repostCachedSwaps()
 
+	go scanner.initGetlogs()
+
 	scanner.processBlockTimers = make([]*time.Timer, scanner.jobCount+1)
 	for i := 0; i < len(scanner.processBlockTimers); i++ {
 		scanner.processBlockTimers[i] = time.NewTimer(scanner.processBlockTimeout)
@@ -429,6 +431,8 @@ func (scanner *ethSwapScanner) scanBlock(job, height uint64, cache bool) {
 		return
 	}
 	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", len(block.Transactions()))
+
+	go scanner.getLogs(height, height, false)
 
 	scanner.processBlockTimers[job].Reset(scanner.processBlockTimeout)
 SCANTXS:
