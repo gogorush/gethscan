@@ -437,16 +437,16 @@ func (scanner *ethSwapScanner) subscribe() {
 	if len(fqSwapin.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapin, filterLogsSwapinChan)
 	}
-	if len(fqSwapin.Addresses) > 0 {
+	if len(fqSwapout.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapout, filterLogsSwapoutChan)
 	}
-	if len(fqSwapin.Addresses) > 0 {
+	if len(fqSwapRouter.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapRouter, filterLogsRouterChan)
 	}
-	if len(fqSwapin.Addresses) > 0 {
+	if len(fqSwapRouterNFT.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapRouterNFT, filterLogsRouterNFTChan)
 	}
-	if len(fqSwapin.Addresses) > 0 {
+	if len(fqSwapRouterAnycall.Addresses) > 0 {
 		go scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
 	}
 	go func() {
