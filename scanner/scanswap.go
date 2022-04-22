@@ -19,9 +19,9 @@ import (
 	"github.com/anyswap/CrossChain-Bridge/tokens"
 	"github.com/urfave/cli/v2"
 
-	ethclient "github.com/weijun-sh/gethclient"
-	"github.com/weijun-sh/gethclient/common"
-	"github.com/weijun-sh/gethclient/types"
+	ethclient "github.com/jowenshaw/gethclient"
+	"github.com/jowenshaw/gethclient/common"
+	"github.com/jowenshaw/gethclient/types"
 
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"

@@ -9,9 +9,9 @@ import (
 
 	"github.com/weijun-sh/gethscan/params"
 
-	"github.com/weijun-sh/gethclient/types/ethereum"
-	"github.com/weijun-sh/gethclient/common"
-        "github.com/weijun-sh/gethclient/types"
+	"github.com/jowenshaw/gethclient/types/ethereum"
+	"github.com/jowenshaw/gethclient/common"
+        "github.com/jowenshaw/gethclient/types"
         "github.com/anyswap/CrossChain-Bridge/log"
 )
 
