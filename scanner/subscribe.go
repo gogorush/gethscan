@@ -17,6 +17,7 @@ import (
 
 var (
 	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
+	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 
 	tokenSwap map[string]*params.TokenConfig = make(map[string]*params.TokenConfig, 0)
 	prefixSwapRouterAnycall = "routeranycall"
@@ -95,7 +96,7 @@ func initFilerLogs() {
         //router anycall
         if len(tokenRouterAnycallAddresses) > 0 {
                 topicsAnycall := make([][]common.Hash, 0)
-                topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic})
+                topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic})
                 fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
                 fqSwapRouterAnycall.Topics = topicsAnycall
         }

@@ -92,6 +92,8 @@ scan cross chain swaps
 
 	logAnycallSwapOutTopic         = common.FromHex("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
 	logAnycallTransferSwapOutTopic = common.FromHex("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
+
+	logAnycallV6SwapOutTopic       = common.FromHex("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 )
 
 const (
@@ -939,6 +941,7 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			switch {
 			case bytes.Equal(logTopic, logAnycallSwapOutTopic):
 			case bytes.Equal(logTopic, logAnycallTransferSwapOutTopic):
+			case bytes.Equal(logTopic, logAnycallV6SwapOutTopic):
 			default:
 				continue
 			}
