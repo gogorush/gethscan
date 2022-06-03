@@ -483,17 +483,19 @@ SCANTXS:
 }
 
 func (scanner *ethSwapScanner) scanTransactionXRP(txhash string) {
-	tx, err := GetTx_XRP(URL_xrp, txhash)
-	if err != nil {
-		return
-	}
+	//log.Debug("GetTx_XRP", "txHash", txhash)
+	//tx, err := GetTx_XRP(URL_xrp, txhash)
+	//if err != nil {
+	//	return
+	//}
+	//log.Debug("GetTx_XRP finished", "txHash", txhash)
 
-	if tx.Destination == "" {
-		return
-	}
+	//if tx.Destination == "" {
+	//	return
+	//}
 
 	for _, tokenCfg := range params.GetScanConfig().Tokens {
-		verifyErr := scanner.verifyTransactionXRP(tx, tokenCfg)
+		verifyErr := scanner.verifyTransactionXRP(txhash, tokenCfg)
 		if verifyErr != nil {
 			log.Debug("verify tx failed", "txHash", txhash, "err", verifyErr)
 		}
@@ -515,14 +517,17 @@ func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
 	}
 }
 
-func (scanner *ethSwapScanner) checkTxToAddressXRP(tx *txResultConfig, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
+func (scanner *ethSwapScanner) checkTxToAddressXRP(txHash string, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
+	tx, err := GetTx_XRP(URL_xrp, txHash)
+	if err != nil {
+		return
+	}
 	needReceipt := scanner.scanReceipt
 	txtoAddress := tx.Destination
 
 	var cmpTxTo string
 	if tokenCfg.IsRouterSwap() {
 		cmpTxTo = tokenCfg.RouterContract
-		needReceipt = true
 	} else if tokenCfg.IsNativeToken() {
 		cmpTxTo = tokenCfg.DepositAddress
 	} else {
@@ -550,9 +555,10 @@ func (scanner *ethSwapScanner) checkTxToAddressXRP(tx *txResultConfig, tokenCfg 
 	}
 
 	if needReceipt {
-		r, err := scanner.loopGetTxReceipt(common.HexToHash(tx.Hash))
+		log.Warn("get tx receipt error", "txHash", txHash)
+		r, err := scanner.loopGetTxReceipt(common.HexToHash(txHash))
 		if err != nil {
-			log.Warn("get tx receipt error", "txHash", tx.Hash, "err", err)
+			log.Warn("get tx receipt error", "txHash", txHash, "err", err)
 			return nil, false
 		}
 		receipt = r
@@ -607,19 +613,18 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 	return receipt, true
 }
 
-func (scanner *ethSwapScanner) verifyTransactionXRP(tx *txResultConfig, tokenCfg *params.TokenConfig) (verifyErr error) {
-	_, isAcceptToAddr := scanner.checkTxToAddressXRP(tx, tokenCfg)
+func (scanner *ethSwapScanner) verifyTransactionXRP(txHash string, tokenCfg *params.TokenConfig) (verifyErr error) {
+	_, isAcceptToAddr := scanner.checkTxToAddressXRP(txHash, tokenCfg)
 	if !isAcceptToAddr {
 		return nil
 	}
 
-	txHash := tx.Hash
-
 	switch {
 	// router swap
-	//case tokenCfg.IsRouterSwap():
-	//	scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
-	//	return nil
+	case tokenCfg.IsRouterSwap():
+		log.Debug("tokenCfg.IsRouterSwap", "txHash", txHash)
+		scanner.postSwapAll(txHash, tokenCfg)
+		return nil
 
 	// bridge swapin
 	case tokenCfg.DepositAddress != "":
@@ -689,6 +694,22 @@ func (scanner *ethSwapScanner) verifyTransaction(tx *types.Transaction, tokenCfg
 		scanner.postBridgeSwap(txHash, tokenCfg)
 	}
 	return verifyErr
+}
+
+func (scanner *ethSwapScanner) postSwapAll(txid string, tokenCfg *params.TokenConfig) {
+	var subject, rpcMethod string
+	chainID := tokenCfg.ChainID
+	subject = "post swap register"
+	rpcMethod = "swap.RegisterRouterSwap"
+	log.Info(subject, "txid", txid)
+	swap := &swapPost{
+		txid:       txid,
+		chainID:    chainID,
+		rpcMethod:  rpcMethod,
+		logIndex:   "0", // swap/register/chainid/txid
+		swapServer: tokenCfg.SwapServer,
+	}
+	scanner.postSwapPost(swap)
 }
 
 func (scanner *ethSwapScanner) postBridgeSwap(txid string, tokenCfg *params.TokenConfig) {
@@ -1152,13 +1173,13 @@ func (scanner *ethSwapScanner) loopSwapPending() {
                        ok := scanner.repostSwap(&sp)
                        if ok == true {
                                mongodb.UpdateSwapPending(swap)
-                       } else {
-                               r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Id))
-                               if err != nil || (err == nil && r.Status != uint64(1)) {
-                                       log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Id)
-                                       mongodb.RemoveSwapPending(swap)
-                                       mongodb.AddSwapDeleted(swap, false)
-                               }
+                       //} else {
+                       //        r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Id))
+                       //        if err != nil || (err == nil && r.Status != uint64(1)) {
+                       //                log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Id)
+                       //                mongodb.RemoveSwapPending(swap)
+                       //                mongodb.AddSwapDeleted(swap, false)
+                       //        }
                        }
                }
 		offset += 10
