@@ -108,6 +108,7 @@ const (
 	swapIsClosedResult             = "swap is closed"
 	swapTradeNotSupport            = "swap trade not support"
 	txWithWrongContract            = "tx with wrong contract"
+	wrongBindAddress               = "wrong bind address"
 )
 
 var startHeightArgument int64
@@ -796,6 +797,7 @@ func rpcPost(swap *swapPost) error {
 
         if err != nil {
 		if checkSwapPostError(err, args) == nil {
+			log.Warn("post swap failed", "swap", args, "server", swap.swapServer, "err", err)
 			return nil
 		}
                 if isRouterSwap {
@@ -845,11 +847,15 @@ func checkSwapPostError(err error, args interface{}) error {
 		return nil
 	}
 	if strings.Contains(err.Error(), swapIsClosedResult) {
-		log.Info("post router swap failed, swap is closed", "swap", args)
+		log.Info("post swap failed, swap is closed", "swap", args)
 		return nil
 	}
 	if strings.Contains(err.Error(), swapTradeNotSupport) {
-		log.Info("post router swap failed, swap trade not support", "swap", args)
+		log.Info("post swap failed, swap trade not support", "swap", args)
+		return nil
+	}
+	if strings.Contains(err.Error(), wrongBindAddress) {
+		log.Info("post swap failed, wrong bind address", "swap", args)
 		return nil
 	}
 	return err
@@ -867,6 +873,10 @@ func checkRouterStatus(status string, args interface{}) error {
 	}
 	if strings.Contains(status, txWithWrongContract) {
 		log.Info("post router swap failed, tx with wrong contract", "swap", args)
+		return nil
+	}
+	if strings.Contains(status, wrongBindAddress) {
+		log.Info("post router swap failed, wrong bind address", "swap", args)
 		return nil
 	}
 	err := errors.New(status)
