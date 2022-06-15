@@ -83,6 +83,7 @@ scan cross chain swaps
 	stringSwapoutLogTopic  = common.HexToHash("0x9c92ad817e5474d30a4378deface765150479363a897b0590fbb12ae9d89396b") //btc swapout
 
 	routerAnySwapOutTopic                  = common.HexToHash("0x97116cf6cd4f6412bb47914d6db18da9e16ab2142f543b86e207c24fbd16b23a")
+	routerAnySwapOutTopic2                 = common.HexToHash("0x409e0ad946b19f77602d6cf11d59e1796ddaa4828159a0b4fb7fa2ff6b161b79")
 	routerAnySwapTradeTokensForTokensTopic = common.HexToHash("0xfea6abdf4fd32f20966dff7619354cd82cd43dc78a3bee479f04c74dbfc585b3")
 	routerAnySwapTradeTokensForNativeTopic = common.HexToHash("0x278277e0209c347189add7bd92411973b5f6b8644f7ac62ea1be984ce993f8f4")
 	routerCrossDexTopic                    = common.HexToHash("0x8e7e5695fff09074d4c7d6c71615fd382427677f75f460c522357233f3bd3ec3")
@@ -1263,7 +1264,7 @@ func initFilerLogs() {
 	//router
 	if len(tokenRouterAddresses) > 0 {
 		topicsRouter := make([][]common.Hash, 0)
-		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic, routerCrossDexTopic})
+		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapOutTopic2, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic, routerCrossDexTopic})
 		fqSwapRouter.Addresses = tokenRouterAddresses
 		fqSwapRouter.Topics = topicsRouter
 	}
