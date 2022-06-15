@@ -618,10 +618,9 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
 	ctx := context.Background()
 	fq.FromBlock = big.NewInt(int64(from))
 	fq.ToBlock = big.NewInt(int64(to))
-	for i := 0; i < scanner.rpcRetryCount; i++ {
+	for i := 0; ; i++ {
 		logs, err := scanner.client.FilterLogs(ctx, fq)
 		if err == nil {
-			//log.Info("filterLogs", "block from", from, "to", to, "logs", logs)
 			for _, log := range logs {
 				blockhash := log.BlockHash.String()
 				if cache && cachedBlocks.isScanned(blockhash) {
@@ -630,11 +629,11 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
 				cachedBlocks.addBlock(blockhash)
 				ch <- log
 			}
-			//log.Info("filterLogs success", "block", height)
+			log.Info("filterLogs success", "from", from, "to", to)
 			return
 		}
-		log.Warn("filterLogs retry in 200 millisecond", "error", err, "block from", from, "to", to)
-		time.Sleep(200 * time.Millisecond)
+		log.Warn("filterLogs retry in 1 second", "error", err, "from", from, "to", to, "try", i)
+		time.Sleep(1 * time.Second)
 	}
 	log.Warn("filterLogs failed", "block from", from, "to", to)
 }
