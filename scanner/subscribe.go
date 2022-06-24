@@ -16,13 +16,28 @@ import (
 )
 
 var (
+	RouterAnySwapOutTopic                  = common.HexToHash("0x97116cf6cd4f6412bb47914d6db18da9e16ab2142f543b86e207c24fbd16b23a")
+	RouterAnySwapOutTopic2                 = common.HexToHash("0x409e0ad946b19f77602d6cf11d59e1796ddaa4828159a0b4fb7fa2ff6b161b79")
+	RouterAnySwapTradeTokensForTokensTopic = common.HexToHash("0xfea6abdf4fd32f20966dff7619354cd82cd43dc78a3bee479f04c74dbfc585b3")
+	RouterAnySwapTradeTokensForNativeTopic = common.HexToHash("0x278277e0209c347189add7bd92411973b5f6b8644f7ac62ea1be984ce993f8f4")
+        RouterCrossDexTopic                    = common.HexToHash("0x8e7e5695fff09074d4c7d6c71615fd382427677f75f460c522357233f3bd3ec3")
+
+	RouterNFT721SwapOutTopic       = common.HexToHash("0x0d45b0b9f5add3e1bb841982f1fa9303628b0b619b000cb1f9f1c3903329a4c7")
+	RouterNFT1155SwapOutTopic      = common.HexToHash("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
+	RouterNFT1155SwapOutBatchTopic = common.HexToHash("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
+
 	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
 	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 
 	tokenSwap map[string]*params.TokenConfig = make(map[string]*params.TokenConfig, 0)
 	prefixSwapRouterAnycall = "routeranycall"
 
+        fqSwapRouter        ethereum.FilterQuery
+        fqSwapRouterNFT     ethereum.FilterQuery
 	fqSwapRouterAnycall ethereum.FilterQuery
+
+	filterLogsRouterChan        chan types.Log
+        filterLogsRouterNFTChan     chan types.Log
 	filterLogsRouterAnycallChan chan types.Log
 )
 
@@ -43,6 +58,12 @@ func (scanner *ethSwapScanner) subscribeSwap(fq ethereum.FilterQuery, ch chan ty
 
 func (scanner *ethSwapScanner) subscribe() {
         log.Info("start subscribe")
+	if len(fqSwapRouter.Addresses) > 0 {
+                go scanner.subscribeSwap(fqSwapRouter, filterLogsRouterChan)
+        }
+        if len(fqSwapRouterNFT.Addresses) > 0 {
+                go scanner.subscribeSwap(fqSwapRouterNFT, filterLogsRouterNFTChan)
+        }
         if len(fqSwapRouterAnycall.Addresses) > 0 {
                 scanner.subscribeSwap(fqSwapRouterAnycall, filterLogsRouterAnycallChan)
         }
@@ -82,7 +103,9 @@ func closeFilterChain() {
 
 func initFilerLogs() {
         tokenSwap = make(map[string]*params.TokenConfig, 0)
+	var tokenRouterAddresses = make([]common.Address, 0)
         var tokenRouterAnycallAddresses = make([]common.Address, 0)
+        var tokenRouterNFTAddresses = make([]common.Address, 0)
         tokens := params.GetScanConfig().Tokens
         for _, tokenCfg := range tokens {
                 switch {
@@ -99,6 +122,20 @@ func initFilerLogs() {
                 topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic})
                 fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
                 fqSwapRouterAnycall.Topics = topicsAnycall
+        }
+	//router nft
+        if len(tokenRouterNFTAddresses) > 0 {
+                topicsNFT := make([][]common.Hash, 0)
+                topicsNFT = append(topicsNFT, []common.Hash{RouterNFT721SwapOutTopic, RouterNFT1155SwapOutTopic, RouterNFT1155SwapOutBatchTopic})
+                fqSwapRouterNFT.Addresses = tokenRouterNFTAddresses
+                fqSwapRouterNFT.Topics = topicsNFT
+        }
+        //router
+        if len(tokenRouterAddresses) > 0 {
+                topicsRouter := make([][]common.Hash, 0)
+                topicsRouter = append(topicsRouter, []common.Hash{RouterAnySwapOutTopic, RouterAnySwapOutTopic2, RouterAnySwapTradeTokensForTokensTopic, RouterAnySwapTradeTokensForNativeTopic, RouterCrossDexTopic})
+                fqSwapRouter.Addresses = tokenRouterAddresses
+                fqSwapRouter.Topics = topicsRouter
         }
 }
 
@@ -144,6 +181,18 @@ func (scanner *ethSwapScanner) getIndexPosition(txhash common.Hash, index uint) 
         return 0
 }
 
+func (scanner *ethSwapScanner) getLogsSwapRouter(from, to uint64, cache bool) {
+        if len(fqSwapRouter.Addresses) > 0 {
+                scanner.filterLogs(from, to, fqSwapRouter, filterLogsRouterChan, cache)
+        }
+}
+
+func (scanner *ethSwapScanner) getLogsSwapRouterNFT(from, to uint64, cache bool) {
+        if len(fqSwapRouterNFT.Addresses) > 0 {
+                scanner.filterLogs(from, to, fqSwapRouterNFT, filterLogsRouterNFTChan, cache)
+        }
+}
+
 func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64, cache bool) {
         if len(fqSwapRouterAnycall.Addresses) > 0 {
                 scanner.filterLogs(from, to, fqSwapRouterAnycall, filterLogsRouterAnycallChan, cache)
@@ -151,6 +200,8 @@ func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64, cache b
 }
 
 func (scanner *ethSwapScanner) getLogs(from, to uint64, cache bool) {
+        scanner.getLogsSwapRouter(from, to, cache)
+        scanner.getLogsSwapRouterNFT(from, to, cache)
         scanner.getLogsSwapRouterAnycall(from, to, cache)
 }
 
