@@ -12,7 +12,7 @@ import (
 	"github.com/jowenshaw/gethclient/types/ethereum"
 	"github.com/jowenshaw/gethclient/common"
         "github.com/jowenshaw/gethclient/types"
-        "github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/anyswap/CrossChain-Bridge/log"
 )
 
 var (
@@ -30,6 +30,8 @@ var (
 	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 
 	tokenSwap map[string]*params.TokenConfig = make(map[string]*params.TokenConfig, 0)
+        prefixSwapRouter = "router"
+        prefixSwapRouterNFT = "routernft"
 	prefixSwapRouterAnycall = "routeranycall"
 
         fqSwapRouter        ethereum.FilterQuery
@@ -86,18 +88,20 @@ func (scanner *ethSwapScanner) initGetlogs() {
 
         initFilerLogs()
 
-	if len(fqSwapRouterAnycall.Addresses) > 0 {
-		go scanner.loopFilterChain()
-		go scanner.subscribe()
-	}
+	go scanner.loopFilterChain()
+	go scanner.subscribe()
 	select {}
 }
 
 func initFilterChan() {
+        filterLogsRouterChan = make(chan types.Log, 128)
+        filterLogsRouterNFTChan = make(chan types.Log, 128)
         filterLogsRouterAnycallChan = make(chan types.Log, 128)
 }
 
 func closeFilterChain() {
+        close(filterLogsRouterChan)
+        close(filterLogsRouterNFTChan)
         close(filterLogsRouterAnycallChan)
 }
 
@@ -109,6 +113,17 @@ func initFilerLogs() {
         tokens := params.GetScanConfig().Tokens
         for _, tokenCfg := range tokens {
                 switch {
+                // router swap
+                case tokenCfg.IsRouterSwap():
+                        key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouter, tokenCfg.RouterContract))
+                        addTokenSwap(key, tokenCfg)
+                        tokenRouterAddresses = append(tokenRouterAddresses, common.HexToAddress(tokenCfg.RouterContract))
+
+                // router NFT
+                case tokenCfg.IsRouterNFTSwap():
+                        key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterNFT, tokenCfg.RouterContract))
+                        addTokenSwap(key, tokenCfg)
+                        tokenRouterNFTAddresses = append(tokenRouterNFTAddresses, common.HexToAddress(tokenCfg.RouterContract))
                 // router anycall swap
                 case tokenCfg.IsRouterAnycallSwap():
                         key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterAnycall, common.HexToAddress(tokenCfg.RouterContract)))
@@ -152,14 +167,38 @@ func addTokenSwap(key string, tokenCfg *params.TokenConfig) {
 func (scanner *ethSwapScanner) loopFilterChain() {
         for {
                 select {
+                case rlog := <-filterLogsRouterChan:
+                        txhash := rlog.TxHash.String()
+                        logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
+                        log.Debug("filterLogsRouterChan", "txhash", txhash, "logIndex", logIndex)
+                        key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouter, rlog.Address))
+                        token := tokenSwap[key]
+                        if token == nil {
+                                log.Debug("filterLogsRouterChan", "txhash", txhash, "key not config", key)
+                                continue
+                        }
+                        scanner.postRouterSwap(txhash, logIndex, token)
+
+                case rlog := <-filterLogsRouterNFTChan:
+                        txhash := rlog.TxHash.String()
+                        logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
+                        log.Debug("filterLogsRouterNFTChan", "txhash", txhash, "logIndex", logIndex)
+                        key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterNFT, rlog.Address))
+                        token := tokenSwap[key]
+                        if token == nil {
+                                log.Debug("filterLogsRouterNFTChan", "txhash", txhash, "key not config", key)
+                                continue
+                        }
+                        scanner.postRouterSwap(txhash, logIndex, token)
+
                 case rlog := <-filterLogsRouterAnycallChan:
                         txhash := rlog.TxHash.String()
                         logIndex := scanner.getIndexPosition(rlog.TxHash, rlog.Index)
-                        //log.Info("Find event filterLogsRouterAnycallChan", "txhash", txhash, "logIndex", logIndex)
+                        log.Info("filterLogsRouterAnycallChan", "txhash", txhash, "logIndex", logIndex)
                         key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterAnycall, rlog.Address))
                         token := tokenSwap[key]
                         if token == nil {
-                                log.Debug("Find event filterLogsRouterAnycallChan", "txhash", txhash, "key not config", key)
+                                log.Debug("filterLogsRouterAnycallChan", "txhash", txhash, "key not config", key)
                                 continue
                         }
                         scanner.postRouterSwap(txhash, logIndex, token)
@@ -183,23 +222,27 @@ func (scanner *ethSwapScanner) getIndexPosition(txhash common.Hash, index uint) 
 
 func (scanner *ethSwapScanner) getLogsSwapRouter(from, to uint64, cache bool) {
         if len(fqSwapRouter.Addresses) > 0 {
+		log.Debug("getLogsSwapRouter", "from", from, "to", to)
                 scanner.filterLogs(from, to, fqSwapRouter, filterLogsRouterChan, cache)
         }
 }
 
 func (scanner *ethSwapScanner) getLogsSwapRouterNFT(from, to uint64, cache bool) {
         if len(fqSwapRouterNFT.Addresses) > 0 {
+		log.Debug("getLogsSwapRouterNFT", "from", from, "to", to)
                 scanner.filterLogs(from, to, fqSwapRouterNFT, filterLogsRouterNFTChan, cache)
         }
 }
 
 func (scanner *ethSwapScanner) getLogsSwapRouterAnycall(from, to uint64, cache bool) {
         if len(fqSwapRouterAnycall.Addresses) > 0 {
+		log.Debug("getLogsSwapRouterAnycall", "from", from, "to", to)
                 scanner.filterLogs(from, to, fqSwapRouterAnycall, filterLogsRouterAnycallChan, cache)
         }
 }
 
 func (scanner *ethSwapScanner) getLogs(from, to uint64, cache bool) {
+	log.Debug("getLogs", "from", from, "to", to)
         scanner.getLogsSwapRouter(from, to, cache)
         scanner.getLogsSwapRouterNFT(from, to, cache)
         scanner.getLogsSwapRouterAnycall(from, to, cache)
@@ -212,14 +255,15 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
         for i := 0; i < scanner.rpcRetryCount; i++ {
                 logs, err := scanner.client.FilterLogs(ctx, fq)
                 if err == nil {
-                        //log.Info("filterLogs", "block from", from, "to", to, "logs", logs)
-                        for _, log := range logs {
-                                blockhash := log.BlockHash.String()
-                                if cache && cachedBlocks.isScanned(blockhash) {
-                                        continue
-                                }
-                                cachedBlocks.addBlock(blockhash)
-                                ch <- log
+                        for _, l := range logs {
+                                //blockhash := l.BlockHash.String()
+                                //if cache && cachedBlocks.isScanned(blockhash) {
+				//	log.Debug("filterLogs log isScanned", "from", from, "to", to, "log", l)
+                                //        continue
+                                //}
+                                //cachedBlocks.addBlock(blockhash)
+				log.Debug("filterLogs log success", "from", from, "to", to, "address", l.Address, "topic", l.Topics[0])
+                                ch <- l
                         }
                         //log.Info("filterLogs success", "block", height)
                         return

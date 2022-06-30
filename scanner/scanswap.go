@@ -519,6 +519,7 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 func (scanner *ethSwapScanner) verifyTransaction(height, index uint64, tx *types.Transaction, tokenCfg *params.TokenConfig) (verifyErr error) {
 	receipt, isAcceptToAddr := scanner.checkTxToAddress(tx, tokenCfg)
 	if !isAcceptToAddr {
+		log.Debug("verifyTransaction !isAcceptToAddr return", "txHash", tx.Hash().Hex())
 		return nil
 	}
 
@@ -527,6 +528,7 @@ func (scanner *ethSwapScanner) verifyTransaction(height, index uint64, tx *types
 	switch {
 	// router swap
 	case tokenCfg.IsRouterSwap():
+		log.Debug("verifyTransaction IsRouterSwap", "txHash", txHash)
 		scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
 		return nil
 
@@ -918,15 +920,17 @@ func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *t
 
 func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) {
 	if receipt == nil {
+		log.Debug("verifyAndPostRouterSwapTx receipt is nil", "txhash", tx.Hash().Hex())
 		return
 	}
 	for i := 0; i < len(receipt.Logs); i++ {
 		rlog := receipt.Logs[i]
 		if rlog.Removed {
+			log.Debug("verifyAndPostRouterSwapTx removed", "log(i)", i, "txhash", tx.Hash().Hex())
 			continue
 		}
 		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
-			//fmt.Printf("verifyAndPostRouterSwapTx, rlog.Address.String(): %v, txhash: %v\n", rlog.Address.String(), tx.Hash().Hex())
+			log.Debug("verifyAndPostRouterSwapTx", "address", rlog.Address.String(), "txhash", tx.Hash().Hex())
 			continue
 		}
 		logTopic := rlog.Topics[0].Bytes()
@@ -937,6 +941,7 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			case bytes.Equal(logTopic, routerAnySwapOutTopic2):
 			case bytes.Equal(logTopic, routerAnySwapTradeTokensForTokensTopic):
 			case bytes.Equal(logTopic, routerAnySwapTradeTokensForNativeTopic):
+				log.Debug("verifyAndPostRouterSwapTx IsRouterERC20Swap", "logTopic", logTopic)
 			default:
 				continue
 			}
@@ -945,15 +950,16 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			case bytes.Equal(logTopic, logNFT721SwapOutTopic):
 			case bytes.Equal(logTopic, logNFT1155SwapOutTopic):
 			case bytes.Equal(logTopic, logNFT1155SwapOutBatchTopic):
+				log.Debug("verifyAndPostRouterSwapTx IsRouterNFTSwap", "logTopic", logTopic)
 			default:
 				continue
 			}
 		case tokenCfg.IsRouterAnycallSwap():
-			fmt.Printf("tokenCfg.IsRouterAnycallSwap, logTopic: %v\n", logTopic)
 			switch {
 			case bytes.Equal(logTopic, logAnycallSwapOutTopic):
 			case bytes.Equal(logTopic, logAnycallTransferSwapOutTopic):
 			case bytes.Equal(logTopic, logAnycallV6SwapOutTopic):
+				log.Debug("verifyAndPostRouterSwapTx IsRouterAnycallSwap", "logTopic", logTopic)
 			default:
 				continue
 			}
