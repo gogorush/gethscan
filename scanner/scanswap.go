@@ -122,6 +122,8 @@ var (
 	syncedCount uint64
 	syncdCount2Mongodb uint64 = 100
 	synced bool = false
+
+	configFile chan bool = make(chan bool)
 )
 
 type ethSwapScanner struct {
@@ -162,10 +164,20 @@ type swapPost struct {
 	logIndex string
 }
 
+func WatchAndReloadScanConfig(cf chan bool) {
+        go params.WatchAndReloadScanConfig(cf)
+        for {
+                select {
+                case <-cf:
+                        initFilerLogs()
+                }
+        }
+}
+
 func scanSwap(ctx *cli.Context) error {
 	utils.SetLogger(ctx)
 	params.LoadConfig(utils.GetConfigFilePath(ctx))
-	go params.WatchAndReloadScanConfig()
+	go WatchAndReloadScanConfig(configFile)
 
 	scanner := &ethSwapScanner{
 		ctx:           context.Background(),
