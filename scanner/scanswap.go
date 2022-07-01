@@ -487,7 +487,7 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 	txtoAddress := tx.To().String()
 
 	var cmpTxTo string
-	if tokenCfg.IsRouterSwap() {
+	if tokenCfg.IsRouterSwapAll() {
 		cmpTxTo = tokenCfg.RouterContract
 		needReceipt = true
 	} else if tokenCfg.IsNativeToken() {
@@ -539,8 +539,8 @@ func (scanner *ethSwapScanner) verifyTransaction(height, index uint64, tx *types
 
 	switch {
 	// router swap
-	case tokenCfg.IsRouterSwap():
-		log.Debug("verifyTransaction IsRouterSwap", "txHash", txHash)
+	case tokenCfg.IsRouterSwapAll():
+		log.Debug("verifyTransaction IsRouterSwapAll", "txHash", txHash)
 		scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
 		return nil
 

@@ -230,7 +230,7 @@ func (c *TokenConfig) IsBridgeSwap() bool {
 }
 
 // IsRouterSwap is router swap
-func (c *TokenConfig) IsRouterSwap() bool {
+func (c *TokenConfig) IsRouterSwapAll() bool {
 	switch c.TxType {
 	case TxRouterERC20Swap, TxRouterNFTSwap, TxRouterAnycallSwap:
 		return true
@@ -242,6 +242,16 @@ func (c *TokenConfig) IsRouterSwap() bool {
 // IsRouterERC20Swap is router erc20 swap
 func (c *TokenConfig) IsRouterERC20Swap() bool {
 	return c.TxType == TxRouterERC20Swap
+}
+
+// IsRouterSwap is router swap
+func (c *TokenConfig) IsRouterSwap() bool {
+	switch c.TxType {
+	case TxRouterERC20Swap:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsRouterNFTSwap is router nft swap

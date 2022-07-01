@@ -115,17 +115,20 @@ func initFilerLogs() {
                 switch {
                 // router swap
                 case tokenCfg.IsRouterSwap():
+			log.Debug("initFilerLogs", "IsRouterSwap", tokenCfg.RouterContract)
                         key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouter, tokenCfg.RouterContract))
                         addTokenSwap(key, tokenCfg)
                         tokenRouterAddresses = append(tokenRouterAddresses, common.HexToAddress(tokenCfg.RouterContract))
 
                 // router NFT
                 case tokenCfg.IsRouterNFTSwap():
+			log.Debug("initFilerLogs", "IsRouterNFTSwap", tokenCfg.RouterContract)
                         key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterNFT, tokenCfg.RouterContract))
                         addTokenSwap(key, tokenCfg)
                         tokenRouterNFTAddresses = append(tokenRouterNFTAddresses, common.HexToAddress(tokenCfg.RouterContract))
                 // router anycall swap
                 case tokenCfg.IsRouterAnycallSwap():
+			log.Debug("initFilerLogs", "IsRouterAnycallSwap", tokenCfg.RouterContract)
                         key := strings.ToLower(fmt.Sprintf("%v-%v", prefixSwapRouterAnycall, common.HexToAddress(tokenCfg.RouterContract)))
                         addTokenSwap(key, tokenCfg)
                         tokenRouterAnycallAddresses = append(tokenRouterAnycallAddresses, common.HexToAddress(tokenCfg.RouterContract))
