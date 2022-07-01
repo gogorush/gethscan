@@ -8,6 +8,7 @@ Enable = true
 
 [BlockChain]
 Chain = "ftm"
+RealTime = true
 StableHeight = 10 # stable height
 ScanBackHeight = 100 # block number in 2h
 GetLogsMaxBlocks = 20 # max blocks every getLogs

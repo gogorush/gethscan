@@ -122,6 +122,7 @@ var (
 	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
 	synced             bool = false
+	realTime           bool = true
 	getLogsMaxBlocks   uint64 = 20
 	getLogsInterval    uint64 = 10
 
@@ -222,6 +223,7 @@ func filterlogs(ctx *cli.Context) error {
 	if bcConfig.StableHeight > 0 {
 		scanner.stableHeight = bcConfig.StableHeight
 	}
+	realTime = bcConfig.RealTime
 	chain = bcConfig.Chain
 	if bcConfig.GetLogsMaxBlocks > 0 {
 		getLogsMaxBlocks = bcConfig.GetLogsMaxBlocks
@@ -473,15 +475,25 @@ func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.Fi
         }
 }
 
+func getEndBlock(latest, stable uint64) uint64 {
+	if !realTime && latest > stable {
+		return latest - stable
+	}
+	return latest
+}
+
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
 	scanBack := scanner.scanBackHeight
 	log.Info("start scan loop job", "from", from, "stable", stable)
 	loopIntervalTime := time.Duration(getLogsInterval) * time.Second
+	from = getEndBlock(from, stable)
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
-                for h := from; h <= latest; {
-			to := countFilterLogsBlock(h, latest)
+		end := getEndBlock(latest, stable)
+		fmt.Printf("\nlatest: %v, end: %v, stable: %v, from: %v\n", latest, end, stable, from)
+                for h := from; h <= end; {
+			to := countFilterLogsBlock(h, end)
 			scanner.getLogs(h, to, true)
                         if mongodbEnable {
                                 updateSyncdBlockNumber(h, to)
@@ -489,13 +501,13 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 			h = to + 1
 			time.Sleep(time.Second * 1)
                 }
-		if from+stable < latest {
-			from = latest - stable
+		if from < end {
+			from = end
 		}
 		if synced && params.GetHaveReloadConfig() {
 			synced = false
 			from -= scanBack
-			log.Info("scanLoop scan back", "justnow", latest, "now", from)
+			log.Info("scanLoop scan back", "justnow", end, "now", from)
 			params.UpdateHaveReloadConfig(false)
 		}
 		time.Sleep(loopIntervalTime)

@@ -52,12 +52,13 @@ type MongoDBConfig struct {
 }
 
 type BlockChainConfig struct {
-	Chain        string
-	StableHeight uint64
-	ScanBackHeight uint64
+	Chain            string
+	RealTime         bool
+	StableHeight     uint64
+	ScanBackHeight   uint64
 	GetLogsMaxBlocks uint64
-	GetLogsInterval uint64
-	SyncNumber   uint64
+	GetLogsInterval  uint64
+	SyncNumber       uint64
 }
 
 type RegisterConfig struct {
