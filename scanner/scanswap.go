@@ -601,6 +601,12 @@ func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 		if err == nil {
 			log.Info("get latest block number success", "height", header.Number)
 			return header.Number.Uint64()
+		} else {
+			number, err := scanner.client.BlockNumber(scanner.ctx)
+			if err == nil {
+				log.Info("get latest block number success", "height", number)
+				return number
+			}
 		}
 		log.Warn("get latest block number failed", "err", err)
 		time.Sleep(scanner.rpcInterval)
