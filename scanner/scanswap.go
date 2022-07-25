@@ -254,7 +254,12 @@ func (scanner *ethSwapScanner) initClient() {
 	}
 	log.Info("ethclient.Dail gateway success", "gateway", scanner.gateway)
 	scanner.client = ethcli
-	scanner.chainID, err = ethcli.ChainID(scanner.ctx)
+	chainid := ""
+	chainid, err = scanner.getChainID()
+	if err != nil {
+		log.Fatal("get chainid failed", "err", err)
+	}
+	scanner.chainID = GetStubChainID(chainid)
 	if err != nil {
 		log.Fatal("get chainID failed", "err", err)
 	}
@@ -265,7 +270,7 @@ func (scanner *ethSwapScanner) run() {
 	scanner.cachedSwapPosts = tools.NewRing(100)
 	go scanner.repostCachedSwaps()
 
-	go scanner.initGetlogs()
+	//go scanner.initGetlogs()
 
 	scanner.processBlockTimers = make([]*time.Timer, scanner.jobCount+1)
 	for i := 0; i < len(scanner.processBlockTimers); i++ {
@@ -399,10 +404,10 @@ func updateSyncdBlockNumber(number uint64) {
 
 func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 	for { // retry until success
-		header, err := scanner.client.HeaderByNumber(scanner.ctx, nil)
+		block, err := scanner.getLatestNumber()
 		if err == nil {
-			log.Info("get latest block number success", "height", header.Number)
-			return header.Number.Uint64()
+			log.Info("get latest block number success", "height", block.Header.Height)
+			return block.Header.Height
 		}
 		log.Warn("get latest block number failed", "err", err)
 		time.Sleep(scanner.rpcInterval)
@@ -424,10 +429,9 @@ func (scanner *ethSwapScanner) loopGetTxReceipt(txHash common.Hash) (receipt *ty
 	return nil, err
 }
 
-func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, err error) {
-	blockNumber := new(big.Int).SetUint64(height)
+func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *BlockDetail, err error) {
 	for i := 0; i < 5; i++ { // with retry
-		block, err = scanner.client.BlockByNumber(scanner.ctx, blockNumber)
+		block, err = scanner.getBlockByNumber(uint(height))
 		if err == nil {
 			return block, nil
 		}
@@ -442,43 +446,29 @@ func (scanner *ethSwapScanner) scanBlock(job, height uint64, cache bool) {
 	if err != nil {
 		return
 	}
-	blockHash := block.Hash().Hex()
+	blockHash := block.Header.Hash
 	if cache && cachedBlocks.isScanned(blockHash) {
 		return
 	}
-	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", len(block.Transactions()))
+	txs := scanner.getTransaction(block)
+	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", len(txs))
 
-	go scanner.getLogs(height, height, false)
+	//go scanner.getLogs(height, height, false)
 
 	scanner.processBlockTimers[job].Reset(scanner.processBlockTimeout)
 SCANTXS:
-	for i, tx := range block.Transactions() {
+	for i, tx := range txs {
 		select {
 		case <-scanner.processBlockTimers[job].C:
-			log.Warn(fmt.Sprintf("[%v] scan block %v timeout", job, height), "hash", blockHash, "txs", len(block.Transactions()))
+			log.Warn(fmt.Sprintf("[%v] scan block %v timeout", job, height), "hash", blockHash, "txs", len(txs))
 			break SCANTXS
 		default:
-			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", tx.Hash().Hex())
-			scanner.scanTransaction(height, uint64(i), tx)
+			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i))
+			scanner.scanTransaction(tx)
 		}
 	}
 	if cache {
 		cachedBlocks.addBlock(blockHash)
-	}
-}
-
-func (scanner *ethSwapScanner) scanTransaction(height, index uint64, tx *types.Transaction) {
-	if tx.To() == nil {
-		return
-	}
-
-	txHash := tx.Hash().Hex()
-
-	for _, tokenCfg := range params.GetScanConfig().Tokens {
-		verifyErr := scanner.verifyTransaction(height, index, tx, tokenCfg)
-		if verifyErr != nil {
-			log.Debug("verify tx failed", "txHash", txHash, "err", verifyErr)
-		}
 	}
 }
 
