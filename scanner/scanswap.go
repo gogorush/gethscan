@@ -94,6 +94,10 @@ scan cross chain swaps
 
 	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
 	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+
+	LogAnySwapOutV7Topic = common.HexToHash("0x0d969ae475ff6fcaf0dcfa760d4d8607244e8d95e9bf426f8d5d69f9a3e525af")
+	// LogAnySwapOutAndCall(bytes32 swapoutID, address token, address from, string receiver, uint256 amount, uint256 toChainID, string anycallProxy, bytes data)
+	LogAnySwapOutAndCallV7Topic = common.HexToHash("0x968608314ec29f6fd1a9f6ef9e96247a4da1a683917569706e2d2b60ca7c0a6d")
 )
 
 const (
@@ -402,7 +406,9 @@ func (scanner *ethSwapScanner) closeScanner() {
 }
 
 func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGroup) {
-	defer wg.Done()
+	if wg != nil {
+		defer wg.Done()
+	}
 	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
 
 	for h := from; h <= to; h++ {
@@ -494,7 +500,7 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 		fmt.Printf("\nlatest: %v, end: %v, stable: %v, from: %v\n", latest, end, stable, from)
                 for h := from; h <= end; {
 			to := countFilterLogsBlock(h, end)
-			scanner.getLogs(h, to, true)
+			scanner.scanRange(1, from, to, nil)
                         if mongodbEnable {
                                 updateSyncdBlockNumber(h, to)
                         }
@@ -1278,7 +1284,7 @@ func initFilerLogs() {
 	//router anycall
 	if len(tokenRouterAnycallAddresses) > 0 {
 		topicsAnycall := make([][]common.Hash, 0)
-		topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic})
+		topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic, LogAnySwapOutAndCallV7Topic})
 		fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
 		fqSwapRouterAnycall.Topics = topicsAnycall
 	}
@@ -1292,7 +1298,7 @@ func initFilerLogs() {
 	//router
 	if len(tokenRouterAddresses) > 0 {
 		topicsRouter := make([][]common.Hash, 0)
-		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapOutTopic2, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic, routerCrossDexTopic})
+		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapOutTopic2, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic, routerCrossDexTopic, LogAnySwapOutV7Topic})
 		fqSwapRouter.Addresses = tokenRouterAddresses
 		fqSwapRouter.Topics = topicsRouter
 	}
