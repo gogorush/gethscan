@@ -29,6 +29,8 @@ const (
 	genesisMethod = "EXPERIMENTAL_genesis_config"
 	// token transfer method
 	ftTransferMethod = "ft_transfer"
+	// anytoken swap out
+	swapOutMethod = "swap_out"
 	// near rpc url
 	url = "https://archival-rpc.testnet.near.org"
 	//url = "https://rpc.testnet.near.org"
@@ -142,6 +144,8 @@ func verifyTransaction(transactionDetail TransactionDetail) bool {
 		if ftTransferArgs.ReceiverId == MPC_ID {
 			return true
 		}
+	} else if transactionDetail.Actions[0].FunctionCall.MethodName == swapOutMethod && (transactionDetail.ReceiverID == CONTRACT_ID || transactionDetail.ReceiverID == MPC_ID) {
+		return true
 	}
 	return false
 }
