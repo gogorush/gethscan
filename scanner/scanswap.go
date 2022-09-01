@@ -402,7 +402,9 @@ func (scanner *ethSwapScanner) closeScanner() {
 }
 
 func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGroup) {
-	defer wg.Done()
+	if wg != nil {
+		defer wg.Done()
+	}
 	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
 
 	for h := from; h <= to; h++ {
@@ -494,7 +496,7 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 		fmt.Printf("\nlatest: %v, end: %v, stable: %v, from: %v\n", latest, end, stable, from)
                 for h := from; h <= end; {
 			to := countFilterLogsBlock(h, end)
-			scanner.getLogs(h, to, true)
+			scanner.scanRange(1, from, to, nil)
                         if mongodbEnable {
                                 updateSyncdBlockNumber(h, to)
                         }
