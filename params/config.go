@@ -295,9 +295,9 @@ func (c *TokenConfig) CheckConfig() error {
 			return errors.New("wrong 'DepositAddress' " + c.DepositAddress)
 		}
 	case c.IsRouterSwap():
-		if !common.IsHexAddress(c.RouterContract) {
-			return errors.New("wrong 'RouterContract' " + c.RouterContract)
-		}
+		//if !common.IsHexAddress(c.RouterContract) {
+		//	return errors.New("wrong 'RouterContract' " + c.RouterContract)
+		//}
 		if _, err := common.GetBigIntFromStr(c.ChainID); err != nil {
 			return fmt.Errorf("wrong chainID '%v', %w", c.ChainID, err)
 		}

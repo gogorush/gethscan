@@ -254,18 +254,18 @@ func (scanner *ethSwapScanner) initClient() {
 	}
 	log.Info("ethclient.Dail gateway success", "gateway", scanner.gateway)
 	scanner.client = ethcli
-	scanner.chainID, err = ethcli.ChainID(scanner.ctx)
-	if err != nil {
-		log.Fatal("get chainID failed", "err", err)
-	}
-	log.Info("get chainID success", "chainID", scanner.chainID)
+	//scanner.chainID, err = ethcli.ChainID(scanner.ctx)
+	//if err != nil {
+	//	log.Fatal("get chainID failed", "err", err)
+	//}
+	//log.Info("get chainID success", "chainID", scanner.chainID)
 }
 
 func (scanner *ethSwapScanner) run() {
 	scanner.cachedSwapPosts = tools.NewRing(100)
 	go scanner.repostCachedSwaps()
 
-	go scanner.initGetlogs()
+	//go scanner.initGetlogs()
 
 	scanner.processBlockTimers = make([]*time.Timer, scanner.jobCount+1)
 	for i := 0; i < len(scanner.processBlockTimers); i++ {
@@ -284,16 +284,16 @@ func (scanner *ethSwapScanner) run() {
 		startHeightArgument = int64(syncedNumber)
 	}
 	if startHeightArgument != 0 {
-		var start uint64
-		if startHeightArgument > 0 {
-			start = uint64(startHeightArgument)
-		} else if startHeightArgument < 0 {
-			start = wend - uint64(-startHeightArgument)
-		}
-		scanner.doScanRangeJob(start, wend)
-		if scanner.endHeight == 0 && mongodbEnable {
-			rewriteSyncdBlockNumber(wend)
-		}
+		//var start uint64
+		//if startHeightArgument > 0 {
+		//	start = uint64(startHeightArgument)
+		//} else if startHeightArgument < 0 {
+		//	start = wend - uint64(-startHeightArgument)
+		//}
+		//scanner.doScanRangeJob(start, wend)
+		//if scanner.endHeight == 0 && mongodbEnable {
+		//	rewriteSyncdBlockNumber(wend)
+		//}
 	}
 	if scanner.endHeight == 0 {
 		scanner.scanLoop(wend)
@@ -343,27 +343,24 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 }
 
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
-	stable := scanner.stableHeight
-	scanBack := scanner.scanBackHeight
-	log.Info("start scan loop job", "from", from, "stable", stable)
+	log.Info("start scan loop job")
 	for {
-		latest := scanner.loopGetLatestBlockNumber()
-		for h := from; h <= latest; h++ {
-			scanner.scanBlock(0, h, true)
-			if mongodbEnable {
-				updateSyncdBlockNumber(h)
+		messagesIds, err := scanner.getMessages_iota()
+		if err != nil {
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		for _, messageId := range messagesIds {
+			if cachedBlocks.isScanned(messageId) {
+				continue
 			}
+			ok := scanner.scanMessageId(messageId)
+			if ok {
+				cachedBlocks.addBlock(messageId)
+			}
+			log.Info("verify finished", "messageId", messageId)
 		}
-		if from+stable < latest {
-			from = latest - stable
-		}
-		if synced && params.GetHaveReloadConfig() {
-			synced = false
-			from -= scanBack
-			log.Info("scanLoop scan back", "justnow", latest, "now", from)
-			params.UpdateHaveReloadConfig(false)
-		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -399,10 +396,10 @@ func updateSyncdBlockNumber(number uint64) {
 
 func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 	for { // retry until success
-		header, err := scanner.client.HeaderByNumber(scanner.ctx, nil)
+		height, err := GetLatestBlockNumber(scanner.gateway)
 		if err == nil {
-			log.Info("get latest block number success", "height", header.Number)
-			return header.Number.Uint64()
+			log.Info("get latest block number success", "height", height)
+			return height
 		}
 		log.Warn("get latest block number failed", "err", err)
 		time.Sleep(scanner.rpcInterval)
