@@ -89,7 +89,6 @@ func (scanner *ethSwapScanner) initGetlogs() {
         initFilerLogs()
 
 	go scanner.loopFilterChain()
-	go scanner.subscribe()
 	select {}
 }
 
