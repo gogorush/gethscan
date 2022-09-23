@@ -18,10 +18,10 @@ const (
 	startBlock = 95282385
 	// token addr
 	//CONTRACT_ID = "t2.userdemo.testnet"
-	CONTRACT_ID = "car.itachicara.testnet"
+	CONTRACT_ID = "binance.multichain-org.near"
 	// mpc addr
 	//MPC_ID = "userdemo.testnet"
-	MPC_ID = "mpc.testnet"
+	MPC_ID = "mpc-multichain.near"
 	// get block info
 	blockMethod = "block"
 	// get chunk info
@@ -49,7 +49,7 @@ func (scanner *ethSwapScanner) getBlockByNumber(number uint) (*BlockDetail, erro
 // get txs
 func (scanner *ethSwapScanner) getTransaction(blockDetails *BlockDetail) []*ChunkDetail {
 	chunksHash := FilterChunksHash(blockDetails)
-	chunksDetail := FilterChunksDetail(chunksHash)
+	chunksDetail := scanner.FilterChunksDetail(chunksHash)
 	if len(chunksDetail) == 0 {
 		//log.Fatalf("ChunksDetail len is zero")
 		return nil
@@ -85,14 +85,14 @@ func (scanner *ethSwapScanner) getBlockDetailsById(blockId uint) (*BlockDetail, 
 	return &result, nil
 }
 
-func GetChunkDetailsByHash(chunkHash string) (*ChunkDetail, error) {
+func (scanner *ethSwapScanner) GetChunkDetailsByHash(chunkHash string) (*ChunkDetail, error) {
 	request := &client.Request{}
 	request.Method = chunkMethod
 	request.Params = map[string]string{"chunk_id": chunkHash}
 	request.ID = int(time.Now().UnixNano())
 	request.Timeout = rpcTimeout
 	var result ChunkDetail
-	err := client.RPCPostRequest(url, request, &result)
+	err := client.RPCPostRequest(scanner.gateway, request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -107,10 +107,10 @@ func FilterChunksHash(blockDetails *BlockDetail) []string {
 	return chunksHash
 }
 
-func FilterChunksDetail(chunksHash []string) []*ChunkDetail {
+func (scanner *ethSwapScanner) FilterChunksDetail(chunksHash []string) []*ChunkDetail {
 	var chunksDetail []*ChunkDetail
 	for _, chunkHash := range chunksHash {
-		chunkDetail, err := GetChunkDetailsByHash(chunkHash)
+		chunkDetail, err := scanner.GetChunkDetailsByHash(chunkHash)
 		if err == nil {
 			chunksDetail = append(chunksDetail, chunkDetail)
 		}
