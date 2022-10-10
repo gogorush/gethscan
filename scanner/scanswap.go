@@ -82,19 +82,26 @@ scan cross chain swaps
 	addressSwapoutLogTopic = common.HexToHash("0x6b616089d04950dc06c45c6dd787d657980543f89651aec47924752c7d16c888")
 	stringSwapoutLogTopic  = common.HexToHash("0x9c92ad817e5474d30a4378deface765150479363a897b0590fbb12ae9d89396b")
 
+	// router
 	routerAnySwapOutTopic                  = common.FromHex("0x97116cf6cd4f6412bb47914d6db18da9e16ab2142f543b86e207c24fbd16b23a")
 	routerAnySwapOutTopic2                 = common.FromHex("0x409e0ad946b19f77602d6cf11d59e1796ddaa4828159a0b4fb7fa2ff6b161b79")
 	routerAnySwapTradeTokensForTokensTopic = common.FromHex("0xfea6abdf4fd32f20966dff7619354cd82cd43dc78a3bee479f04c74dbfc585b3")
 	routerAnySwapTradeTokensForNativeTopic = common.FromHex("0x278277e0209c347189add7bd92411973b5f6b8644f7ac62ea1be984ce993f8f4")
+        routerCrossDexTopic                    = common.FromHex("0x8e7e5695fff09074d4c7d6c71615fd382427677f75f460c522357233f3bd3ec3")
 
-	logNFT721SwapOutTopic       = common.FromHex("0x0d45b0b9f5add3e1bb841982f1fa9303628b0b619b000cb1f9f1c3903329a4c7")
-	logNFT1155SwapOutTopic      = common.FromHex("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
-	logNFT1155SwapOutBatchTopic = common.FromHex("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
+	routerAnySwapOutV7Topic = common.FromHex("0x0d969ae475ff6fcaf0dcfa760d4d8607244e8d95e9bf426f8d5d69f9a3e525af")
+	routerAnySwapOutAndCallV7Topic = common.FromHex("0x968608314ec29f6fd1a9f6ef9e96247a4da1a683917569706e2d2b60ca7c0a6d")
 
-	logAnycallSwapOutTopic         = common.FromHex("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
-	logAnycallTransferSwapOutTopic = common.FromHex("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
+	// router nft
+	routerNFT721SwapOutTopic       = common.FromHex("0x0d45b0b9f5add3e1bb841982f1fa9303628b0b619b000cb1f9f1c3903329a4c7")
+	routerNFT1155SwapOutTopic      = common.FromHex("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
+	routerNFT1155SwapOutBatchTopic = common.FromHex("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
 
-	logAnycallV6SwapOutTopic       = common.FromHex("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+	// anycall
+	routerAnycallTopic          = common.FromHex("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
+	routerAnycallTransferSwapOutTopic = common.FromHex("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
+
+	routerAnycallV6Topic        = common.FromHex("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 )
 
 const (
@@ -953,24 +960,27 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			case bytes.Equal(logTopic, routerAnySwapOutTopic2):
 			case bytes.Equal(logTopic, routerAnySwapTradeTokensForTokensTopic):
 			case bytes.Equal(logTopic, routerAnySwapTradeTokensForNativeTopic):
+			case bytes.Equal(logTopic, routerCrossDexTopic):
+			case bytes.Equal(logTopic, routerAnySwapOutV7Topic):
+			case bytes.Equal(logTopic, routerAnySwapOutAndCallV7Topic):
 				log.Debug("verifyAndPostRouterSwapTx IsRouterERC20Swap", "logTopic", logTopic)
 			default:
 				continue
 			}
 		case tokenCfg.IsRouterNFTSwap():
 			switch {
-			case bytes.Equal(logTopic, logNFT721SwapOutTopic):
-			case bytes.Equal(logTopic, logNFT1155SwapOutTopic):
-			case bytes.Equal(logTopic, logNFT1155SwapOutBatchTopic):
+			case bytes.Equal(logTopic, routerNFT721SwapOutTopic):
+			case bytes.Equal(logTopic, routerNFT1155SwapOutTopic):
+			case bytes.Equal(logTopic, routerNFT1155SwapOutBatchTopic):
 				log.Debug("verifyAndPostRouterSwapTx IsRouterNFTSwap", "logTopic", logTopic)
 			default:
 				continue
 			}
 		case tokenCfg.IsRouterAnycallSwap():
 			switch {
-			case bytes.Equal(logTopic, logAnycallSwapOutTopic):
-			case bytes.Equal(logTopic, logAnycallTransferSwapOutTopic):
-			case bytes.Equal(logTopic, logAnycallV6SwapOutTopic):
+			case bytes.Equal(logTopic, routerAnycallTopic):
+			case bytes.Equal(logTopic, routerAnycallTransferSwapOutTopic):
+			case bytes.Equal(logTopic, routerAnycallV6Topic):
 				log.Debug("verifyAndPostRouterSwapTx IsRouterAnycallSwap", "logTopic", logTopic)
 			default:
 				continue

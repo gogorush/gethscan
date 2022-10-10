@@ -16,19 +16,29 @@ import (
 )
 
 var (
+	// router
 	RouterAnySwapOutTopic                  = common.HexToHash("0x97116cf6cd4f6412bb47914d6db18da9e16ab2142f543b86e207c24fbd16b23a")
 	RouterAnySwapOutTopic2                 = common.HexToHash("0x409e0ad946b19f77602d6cf11d59e1796ddaa4828159a0b4fb7fa2ff6b161b79")
 	RouterAnySwapTradeTokensForTokensTopic = common.HexToHash("0xfea6abdf4fd32f20966dff7619354cd82cd43dc78a3bee479f04c74dbfc585b3")
 	RouterAnySwapTradeTokensForNativeTopic = common.HexToHash("0x278277e0209c347189add7bd92411973b5f6b8644f7ac62ea1be984ce993f8f4")
         RouterCrossDexTopic                    = common.HexToHash("0x8e7e5695fff09074d4c7d6c71615fd382427677f75f460c522357233f3bd3ec3")
 
+	RouterAnySwapOutV7Topic = common.HexToHash("0x0d969ae475ff6fcaf0dcfa760d4d8607244e8d95e9bf426f8d5d69f9a3e525af")
+	RouterAnySwapOutAndCallV7Topic = common.HexToHash("0x968608314ec29f6fd1a9f6ef9e96247a4da1a683917569706e2d2b60ca7c0a6d")
+
+	// router nft
 	RouterNFT721SwapOutTopic       = common.HexToHash("0x0d45b0b9f5add3e1bb841982f1fa9303628b0b619b000cb1f9f1c3903329a4c7")
 	RouterNFT1155SwapOutTopic      = common.HexToHash("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
 	RouterNFT1155SwapOutBatchTopic = common.HexToHash("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
 
+	// anycall
 	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
-	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+	RouterAnycallTransferSwapOutTopic = common.HexToHash("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
 
+	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+)
+
+var (
 	tokenSwap map[string]*params.TokenConfig = make(map[string]*params.TokenConfig, 0)
         prefixSwapRouter = "router"
         prefixSwapRouterNFT = "routernft"
@@ -136,7 +146,7 @@ func initFilerLogs() {
         //router anycall
         if len(tokenRouterAnycallAddresses) > 0 {
                 topicsAnycall := make([][]common.Hash, 0)
-                topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic})
+                topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic, RouterAnycallTransferSwapOutTopic})
                 fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
                 fqSwapRouterAnycall.Topics = topicsAnycall
         }
@@ -150,7 +160,7 @@ func initFilerLogs() {
         //router
         if len(tokenRouterAddresses) > 0 {
                 topicsRouter := make([][]common.Hash, 0)
-                topicsRouter = append(topicsRouter, []common.Hash{RouterAnySwapOutTopic, RouterAnySwapOutTopic2, RouterAnySwapTradeTokensForTokensTopic, RouterAnySwapTradeTokensForNativeTopic, RouterCrossDexTopic})
+                topicsRouter = append(topicsRouter, []common.Hash{RouterAnySwapOutTopic, RouterAnySwapOutTopic2, RouterAnySwapTradeTokensForTokensTopic, RouterAnySwapTradeTokensForNativeTopic, RouterCrossDexTopic, RouterAnySwapOutV7Topic, RouterAnySwapOutAndCallV7Topic})
                 fqSwapRouter.Addresses = tokenRouterAddresses
                 fqSwapRouter.Topics = topicsRouter
         }
