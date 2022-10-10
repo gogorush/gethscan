@@ -95,9 +95,9 @@ scan cross chain swaps
 	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
 	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 
-	LogAnySwapOutV7Topic = common.HexToHash("0x0d969ae475ff6fcaf0dcfa760d4d8607244e8d95e9bf426f8d5d69f9a3e525af")
+	routerAnySwapOutV7Topic = common.HexToHash("0x0d969ae475ff6fcaf0dcfa760d4d8607244e8d95e9bf426f8d5d69f9a3e525af")
 	// LogAnySwapOutAndCall(bytes32 swapoutID, address token, address from, string receiver, uint256 amount, uint256 toChainID, string anycallProxy, bytes data)
-	LogAnySwapOutAndCallV7Topic = common.HexToHash("0x968608314ec29f6fd1a9f6ef9e96247a4da1a683917569706e2d2b60ca7c0a6d")
+	routerAnySwapOutAndCallV7Topic = common.HexToHash("0x968608314ec29f6fd1a9f6ef9e96247a4da1a683917569706e2d2b60ca7c0a6d")
 )
 
 const (
@@ -1284,7 +1284,7 @@ func initFilerLogs() {
 	//router anycall
 	if len(tokenRouterAnycallAddresses) > 0 {
 		topicsAnycall := make([][]common.Hash, 0)
-		topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic, LogAnySwapOutAndCallV7Topic})
+		topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic})
 		fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
 		fqSwapRouterAnycall.Topics = topicsAnycall
 	}
@@ -1298,7 +1298,7 @@ func initFilerLogs() {
 	//router
 	if len(tokenRouterAddresses) > 0 {
 		topicsRouter := make([][]common.Hash, 0)
-		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapOutTopic2, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic, routerCrossDexTopic, LogAnySwapOutV7Topic})
+		topicsRouter = append(topicsRouter, []common.Hash{routerAnySwapOutTopic, routerAnySwapOutTopic2, routerAnySwapTradeTokensForTokensTopic, routerAnySwapTradeTokensForNativeTopic, routerCrossDexTopic, routerAnySwapOutV7Topic, routerAnySwapOutAndCallV7Topic})
 		fqSwapRouter.Addresses = tokenRouterAddresses
 		fqSwapRouter.Topics = topicsRouter
 	}
