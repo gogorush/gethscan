@@ -16,12 +16,6 @@ const (
 	// target block
 	//startBlock = 94933767
 	startBlock = 95282385
-	// token addr
-	//CONTRACT_ID = "t2.userdemo.testnet"
-	CONTRACT_ID = "binance.multichain-org.near"
-	// mpc addr
-	//MPC_ID = "userdemo.testnet"
-	MPC_ID = "mpc-multichain.near"
 	// get block info
 	blockMethod = "block"
 	// get chunk info
@@ -35,6 +29,22 @@ const (
 	url = "https://archival-rpc.testnet.near.org"
 	//url = "https://rpc.testnet.near.org"
 )
+
+var (
+	// main: binance.multichain-org.near
+	// test: car.itachicara.testnet
+	CONTRACT_ID string
+
+	// main: mpc-multichain.near
+	// test: mpc.testnet
+	MPC_ID string
+)
+
+func nearChainInit() {
+	CONTRACT_ID = params.GetNearContractID()
+	MPC_ID = params.GetNearMpcID()
+	log.Info("Near config", "CONTRACT_ID", CONTRACT_ID, "MPC_ID", MPC_ID)
+}
 
 // get block
 func (scanner *ethSwapScanner) getBlockByNumber(number uint) (*BlockDetail, error) {

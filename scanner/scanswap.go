@@ -202,6 +202,7 @@ func scanSwap(ctx *cli.Context) error {
 		"timeout", scanner.processBlockTimeout,
 	)
 
+	nearChainInit()
 	scanner.initClient()
 
 	bcConfig := params.GetBlockChainConfig()
@@ -254,12 +255,14 @@ func (scanner *ethSwapScanner) initClient() {
 	}
 	log.Info("ethclient.Dail gateway success", "gateway", scanner.gateway)
 	scanner.client = ethcli
-	chainid := ""
-	chainid, err = scanner.getChainID()
-	if err != nil {
-		log.Fatal("get chainid failed", "err", err)
-	}
-	scanner.chainID = GetStubChainID(chainid)
+	//chainid := ""
+	//chainid, err = scanner.getChainID()
+	//if err != nil {
+	//	log.Fatal("get chainid failed", "err", err)
+	//}
+	network := params.GetNearNetwork()
+	log.Info("initClient", "network", network)
+	scanner.chainID = GetStubChainID(network)
 	if err != nil {
 		log.Fatal("get chainID failed", "err", err)
 	}

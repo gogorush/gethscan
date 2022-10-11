@@ -24,6 +24,7 @@ const (
 
 var (
 	configFile string
+	nearConfig = &NearChainConfig{}
 	scanConfig = &ScanConfig{}
 	mongodbConfig = &MongoDBConfig{}
 	blockchainConfig = &BlockChainConfig{}
@@ -34,6 +35,7 @@ var (
 type Config struct {
        MongoDB *MongoDBConfig
 	BlockChain *BlockChainConfig
+	Near *NearChainConfig
        Tokens  []*TokenConfig
 }
 
@@ -51,6 +53,24 @@ type BlockChainConfig struct {
 	StableHeight uint64
 	ScanBackHeight uint64
 	SyncNumber uint64
+}
+
+type NearChainConfig struct {
+	Network string
+	CONTRACT_ID string
+	MPC_ID string
+}
+
+func GetNearNetwork() string {
+	return nearConfig.Network
+}
+
+func GetNearContractID() string {
+	return nearConfig.CONTRACT_ID
+}
+
+func GetNearMpcID() string {
+	return nearConfig.MPC_ID
 }
 
 // ScanConfig scan config
@@ -124,6 +144,10 @@ func LoadConfig(filePath string) *ScanConfig {
 		log.Fatalf("LoadConfig Check config failed. %v", err)
 	}
 
+	nearConfig = config.Near
+	if err := nearConfig.CheckConfig(); err != nil {
+		log.Fatalf("LoadConfig Check near config failed. %v", err)
+	}
 	configFile = filePath // init config file path
 	return scanConfig
 }
@@ -199,6 +223,20 @@ func (c *ScanConfig) CheckConfig() (err error) {
 			}
 			tokensMap[tokensKey] = struct{}{}
 		}
+	}
+	return nil
+}
+
+// CheckConfig check near config
+func (c *NearChainConfig) CheckConfig() (err error) {
+	if c == nil {
+		return errors.New(fmt.Sprintf("near config is nil"))
+	}
+	if c.Network != "mainnet" && c.Network != "testnet" {
+		return errors.New(fmt.Sprintf("near config Network must be 'mainnet|testnet'"))
+	}
+	if c.CONTRACT_ID == "" || c.MPC_ID == "" {
+		return errors.New(fmt.Sprintf("near config CONTRACT_ID or CONTRACT_ID is nil"))
 	}
 	return nil
 }

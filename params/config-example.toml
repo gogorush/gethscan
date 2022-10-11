@@ -12,6 +12,14 @@ StableHeight = 18
 ScanBackHeight = 100 # block number in 1.5h
 SyncNumber = 100
 
+[Near]
+Network = "testnet"
+#Network = "mainnet"
+CONTRACT_ID = "car.itachicara.testnet"
+#CONTRACT_ID = "binance.multichain-org.near"
+MPC_ID = "mpc.testnet"
+#MPC_ID = "mpc-multichain.near"
+
 [[Tokens]]
 TxType = "swapin"
 PairID = "eth"
