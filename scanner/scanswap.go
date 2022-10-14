@@ -92,12 +92,16 @@ scan cross chain swaps
 	logNFT1155SwapOutTopic      = common.HexToHash("0x5058b8684cf36ffd9f66bc623fbc617a44dd65cf2273306d03d3104af0995cb0")
 	logNFT1155SwapOutBatchTopic = common.HexToHash("0xaa428a5ab688b49b415401782c170d216b33b15711d30cf69482f570eca8db38")
 
-	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
-	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
-
 	routerAnySwapOutV7Topic = common.HexToHash("0x0d969ae475ff6fcaf0dcfa760d4d8607244e8d95e9bf426f8d5d69f9a3e525af")
 	// LogAnySwapOutAndCall(bytes32 swapoutID, address token, address from, string receiver, uint256 amount, uint256 toChainID, string anycallProxy, bytes data)
 	routerAnySwapOutAndCallV7Topic = common.HexToHash("0x968608314ec29f6fd1a9f6ef9e96247a4da1a683917569706e2d2b60ca7c0a6d")
+
+	//anycall
+	RouterAnycallTopic          = common.HexToHash("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
+	RouterAnycallV6Topic        = common.HexToHash("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+
+	routerAnycallV7Topic = common.HexToHash("0x17dac14bf31c4070ebb2dc182fc25ae5df58f14162a7f24a65b103e22385af0d")
+	routerAnycallV7Topic2 = common.HexToHash("0x36850177870d3e3dca07a29dcdc3994356392b81c60f537c1696468b1a01e61d")
 )
 
 const (
@@ -1284,7 +1288,7 @@ func initFilerLogs() {
 	//router anycall
 	if len(tokenRouterAnycallAddresses) > 0 {
 		topicsAnycall := make([][]common.Hash, 0)
-		topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic})
+		topicsAnycall = append(topicsAnycall, []common.Hash{RouterAnycallTopic, RouterAnycallV6Topic, routerAnycallV7Topic, routerAnycallV7Topic2})
 		fqSwapRouterAnycall.Addresses = tokenRouterAnycallAddresses
 		fqSwapRouterAnycall.Topics = topicsAnycall
 	}
