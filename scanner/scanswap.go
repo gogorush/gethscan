@@ -102,6 +102,9 @@ scan cross chain swaps
 	routerAnycallTransferSwapOutTopic = common.FromHex("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
 
 	routerAnycallV6Topic        = common.FromHex("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+
+	routerAnycallV7Topic = common.FromHex("0x17dac14bf31c4070ebb2dc182fc25ae5df58f14162a7f24a65b103e22385af0d")
+	routerAnycallV7Topic2 = common.FromHex("0x36850177870d3e3dca07a29dcdc3994356392b81c60f537c1696468b1a01e61d")
 )
 
 const (
@@ -981,6 +984,8 @@ func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, 
 			case bytes.Equal(logTopic, routerAnycallTopic):
 			case bytes.Equal(logTopic, routerAnycallTransferSwapOutTopic):
 			case bytes.Equal(logTopic, routerAnycallV6Topic):
+			case bytes.Equal(logTopic, routerAnycallV7Topic):
+			case bytes.Equal(logTopic, routerAnycallV7Topic2):
 				log.Debug("verifyAndPostRouterSwapTx IsRouterAnycallSwap", "logTopic", logTopic)
 			default:
 				continue
