@@ -13,7 +13,7 @@ var (
         accountResourcePath = API_VERSION + "accounts/%s/resource/%s"
 	//mpc = "0x06da2b6027d581ded49b2314fa43016079e0277a17060437236f8009550961d6" //testnet
 
-	RouterContract = "0x976edbe162fe4746329ead6a9735b4a907a5fc25ab0662ee7b0caea0ed07e14d"
+	RouterContract = "0xd6d6372c8bde72a7ab825c00b9edd35e643fb94a61c55d9d94a9db3010098548"
 	resourceType = RouterContract+"::Router::SwapOutEventHolder"
 	aptosToken params.TokenConfig
 )
@@ -27,9 +27,9 @@ func (scanner *ethSwapScanner) aptosInitClient() {
 
 func init() {
 	aptosToken.TxType = "routerswap"
-	aptosToken.ChainID = "1000004280405"
-	aptosToken.SwapServer = "http://1.15.228.87:31408/rpc"
-	aptosToken.RouterContract = "0x976edbe162fe4746329ead6a9735b4a907a5fc25ab0662ee7b0caea0ed07e14d"
+	aptosToken.ChainID = "1000004280404"
+	aptosToken.SwapServer = "http://172.26.142.154:28747/rpc"
+	aptosToken.RouterContract = "0xd6d6372c8bde72a7ab825c00b9edd35e643fb94a61c55d9d94a9db3010098548"
 }
 
 func (scanner *ethSwapScanner) getCoinEventLog(target, resourceType, field_name string, start, limit int) {
@@ -69,7 +69,7 @@ func (scanner *ethSwapScanner) getSwapoutEventLog(target, resourceType, field_na
 	resp := &[]SwapoutEvent{}
 	err := restClient.GetEventsByEventHandle(resp, target, resourceType, field_name, int(start), int(limit))
 	if err != nil {
-		log.Fatal("GetEventsByEventHandle", "err", err)
+		log.Warn("GetEventsByEventHandle", "err", err)
 		return false
 	}
 	for _, event := range *resp {
@@ -97,7 +97,7 @@ func (scanner *ethSwapScanner) getAccountResource(target, resourceType string) (
 		log.Warn("getAccountResource", "target", target, "err", err)
 		return 0, err
 	}
-	fmt.Printf("getAccountResource, target: %v, counter: %v\n", target, resp.Data.Events.Counter)
+	//fmt.Printf("getAccountResource, target: %v, counter: %v\n", target, resp.Data.Events.Counter)
 	counter, err := strconv.Atoi(resp.Data.Events.Counter)
 	c := uint64(counter)
 	return c, err

@@ -220,7 +220,7 @@ func filterlogs(ctx *cli.Context) error {
 	scanner.gateway = ctx.String(utils.GatewayFlag.Name)
 	startHeightArgument = ctx.Int64(startHeightFlag.Name)
 	scanner.endHeight = ctx.Uint64(utils.EndHeightFlag.Name)
-	scanner.stableHeight = ctx.Uint64(utils.StableHeightFlag.Name)
+	//scanner.stableHeight = ctx.Uint64(utils.StableHeightFlag.Name)
 	scanner.jobCount = ctx.Uint64(utils.JobsFlag.Name)
 	scanner.processBlockTimeout = time.Duration(ctx.Uint64(timeoutFlag.Name)) * time.Second
 
@@ -268,15 +268,25 @@ func filterlogs(ctx *cli.Context) error {
 	if mongodbEnable {
 		InitMongodb()
 		if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
-			lb := counter - 10
-			err = mongodb.InitSyncedBlockNumber(chain, lb)
-			log.Info("InitSyncedBlockNumber", "number", lb, "err", err)
+			lb := counter
+			if counter > 10 {
+				lb = counter - 10
+			}
+			err = mongodb.InitSyncedBlockNumber(chain, lb - 1)
+			log.Info("InitSyncedBlockNumber", "number", lb - 1, "err", err)
 		}
 		go scanner.loopSwapPending()
 		syncedCount = 0
-		syncedNumber = getSyncdBlockNumber() - 10
+		counter := getSyncdBlockNumber()
+		syncedNumber = counter
+		if counter > 10 {
+			syncedNumber = counter - 10
+		}
 	} else {
-		syncedNumber = counter - 10
+		syncedNumber = counter
+		if counter > 10 {
+			syncedNumber = counter - 10
+		}
 	}
 
 	scanner.run(ctx.Bool(subscribeFlag.Name))
@@ -310,9 +320,9 @@ func (scanner *ethSwapScanner) run(subscribe bool) {
 	if wend == 0 {
 		counter, err := scanner.GetAccountResource()
 		if err != nil {
-			log.Fatal("GetAccountResource", "err", err)
+			log.Warn("GetAccountResource", "err", err)
 		}
-		wend = counter
+		wend = counter - 1
 		if uint64(startHeightArgument) > syncedNumber {
 			startHeightArgument = int64(syncedNumber)
 		}
@@ -324,10 +334,10 @@ func (scanner *ethSwapScanner) run(subscribe bool) {
 
 	//initFilerLogs()
 
-	if startHeightArgument <= 0 {
+	if startHeightArgument < 0 {
 		startHeightArgument = int64(syncedNumber)
 	}
-	if startHeightArgument != 0 && !subscribe {
+	if startHeightArgument > 0 && !subscribe {
 		var start uint64
 		if startHeightArgument > 0 {
 			start = uint64(startHeightArgument)
@@ -336,7 +346,7 @@ func (scanner *ethSwapScanner) run(subscribe bool) {
 		}
 		scanner.doScanRangeJob(start, wend)
 		if scanner.endHeight == 0 && mongodbEnable {
-			rewriteSyncdBlockNumber(wend)
+			rewriteSyncdBlockNumber(wend - 1)
 		}
 	}
 	if scanner.endHeight == 0 {
@@ -366,8 +376,9 @@ func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
 	if scanner.jobCount == 0 {
 		log.Fatal("zero count jobs specified")
 	}
-	if start >= end {
-		log.Fatalf("wrong scan range [%v, %v)", start, end)
+	if start > end {
+		log.Warn("wrong scan range [%v, %v)", start, end)
+		return
 	}
 	jobs := scanner.jobCount
 	count := end - start
@@ -430,9 +441,9 @@ func getEndBlock(latest, stable uint64) uint64 {
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
 	scanBack := scanner.scanBackHeight
-	log.Info("start scan loop job", "from", from, "stable", stable)
 	loopIntervalTime := time.Duration(getLogsInterval) * time.Second
 	from = getEndBlock(from, stable) + 1
+	log.Info("start scan loop job", "from", from, "stable", stable)
 	for {
 		counter, err := scanner.GetAccountResource()
 		if err != nil {
@@ -441,12 +452,12 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 			continue
 		}
 		latest := counter
-		if latest < from {
+		if latest <= from {
 			time.Sleep(loopIntervalTime)
 			continue
 		}
 		end := getEndBlock(latest, stable)
-		fmt.Printf("\nlatest: %v, end: %v, stable: %v, from: %v\n", latest, end, stable, from)
+		fmt.Printf("scanLoop, latest: %v, end: %v, stable: %v, from: %v\n", latest, end, stable, from)
                 for h := from; h <= end; {
 			to := countFilterLogsBlock(h, end)
 			limit := to - from + 1
@@ -464,7 +475,6 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 		if from < end {
 			from = end
 		}
-		from += 1
 		if synced && params.GetHaveReloadConfig() {
 			synced = false
 			from -= scanBack
@@ -546,7 +556,7 @@ func updateSyncdBlockNumber(from, to uint64) {
 	}
 	if syncedCount >= syncdCount2Mongodb {
 		synced = true
-		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber)
+		err := mongodb.UpdateSyncedBlockNumber(chain, syncedNumber - 1)
 		if err == nil {
 			log.Info("updateSyncdBlockNumber", "height", syncedNumber)
 			syncedCount = 0
