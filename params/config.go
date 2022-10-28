@@ -20,6 +20,7 @@ const (
 	TxRouterERC20Swap = "routerswap"
 	TxRouterNFTSwap   = "nftswap"
 	TxRouterAnycallSwap   = "anycallswap"
+	TxRouterGas = "gasswap"
 )
 
 var (
@@ -210,6 +211,7 @@ func (c *TokenConfig) IsValidSwapType() bool {
 		TxSwapin,
 		TxSwapout,
 		TxSwapout2,
+		TxRouterGas,
 		TxRouterERC20Swap,
 		TxRouterNFTSwap,
 		TxRouterAnycallSwap:
@@ -232,7 +234,7 @@ func (c *TokenConfig) IsBridgeSwap() bool {
 // IsRouterSwap is router swap
 func (c *TokenConfig) IsRouterSwapAll() bool {
 	switch c.TxType {
-	case TxRouterERC20Swap, TxRouterNFTSwap, TxRouterAnycallSwap:
+	case TxRouterERC20Swap, TxRouterNFTSwap, TxRouterAnycallSwap, TxRouterGas:
 		return true
 	default:
 		return false
@@ -241,13 +243,13 @@ func (c *TokenConfig) IsRouterSwapAll() bool {
 
 // IsRouterERC20Swap is router erc20 swap
 func (c *TokenConfig) IsRouterERC20Swap() bool {
-	return c.TxType == TxRouterERC20Swap
+	return c.TxType == TxRouterERC20Swap || c.TxType == TxRouterGas
 }
 
 // IsRouterSwap is router swap
 func (c *TokenConfig) IsRouterSwap() bool {
 	switch c.TxType {
-	case TxRouterERC20Swap:
+	case TxRouterERC20Swap, TxRouterGas:
 		return true
 	default:
 		return false

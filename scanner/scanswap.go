@@ -680,6 +680,10 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 
 	subject := "post router swap register"
 	rpcMethod := "swap.RegisterRouterSwap"
+	if tokenCfg.TxType == params.TxRouterGas {
+		subject = "post gasswap router register"
+		rpcMethod = "swap.RegisterRouterSwap"
+	}
 	log.Info(subject, "swaptype", tokenCfg.TxType, "chainid", chainID, "txid", txid, "logindex", logIndex)
 
 	swap := &swapPost{
@@ -896,12 +900,23 @@ func (scanner *ethSwapScanner) repostSwap(swap *swapPost) bool {
 	return false
 }
 
+func (scanner *ethSwapScanner) ignoreType(txType string) bool {
+	switch strings.ToLower(txType) {
+	case params.TxRouterGas:
+		return true
+	default:
+		return false
+	}
+}
+
 func (scanner *ethSwapScanner) getSwapoutFuncHashByTxType(txType string) []byte {
 	switch strings.ToLower(txType) {
 	case params.TxSwapout:
 		return addressSwapoutFuncHash
 	case params.TxSwapout2:
 		return stringSwapoutFuncHash
+	case params.TxRouterGas:
+		return addressSwapoutFuncHash
 	default:
 		log.Errorf("unknown swapout tx type %v", txType)
 		return nil
@@ -916,6 +931,8 @@ func (scanner *ethSwapScanner) getLogTopicByTxType(txType string) (topTopic comm
 		return addressSwapoutLogTopic, 3
 	case params.TxSwapout2:
 		return stringSwapoutLogTopic, 2
+	case params.TxRouterGas:
+		return addressSwapoutLogTopic, 3
 	default:
 		log.Errorf("unknown tx type %v", txType)
 		return common.Hash{}, 0
@@ -941,6 +958,10 @@ func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *t
 }
 
 func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) {
+	if scanner.ignoreType(tokenCfg.TxType) {
+		scanner.postRouterSwap(tx.Hash().Hex(), 0, tokenCfg)
+		return
+	}
 	if receipt == nil {
 		log.Debug("verifyAndPostRouterSwapTx receipt is nil", "txhash", tx.Hash().Hex())
 		return
