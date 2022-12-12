@@ -22,6 +22,7 @@ func initApp() {
 	app.HideVersion = true
 	app.Usage = "scan eth like blockchain"
 	app.Commands = []*cli.Command{
+		scanner.ScanBtcCommand,
 		scanner.ScanSwapCommand,
 		scanner.VersionCommand,
 	}

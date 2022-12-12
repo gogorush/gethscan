@@ -74,38 +74,22 @@ func isP2pkhSwapinPrior(tx *electrs.ElectTx, depositAddress string) bool {
 }
 
 // CheckSwapinTxType check swapin type
-func (b *Bridge) CheckSwapinTxType(tx *electrs.ElectTx) (p2shBindAddrs []string, err error) {
+func (b *Bridge) CheckSwapinTxType(tx *electrs.ElectTx) error {
 	tokenCfg := b.GetTokenConfig(PairID)
 	if tokenCfg == nil {
-		return nil, fmt.Errorf("swap pair '%v' is not configed", PairID)
+		return fmt.Errorf("swap pair '%v' is not configed", PairID)
 	}
 	depositAddress := tokenCfg.DepositAddress
-	p2pkhSwapinPrior := isP2pkhSwapinPrior(tx, depositAddress)
-	p2shAddressMap := make(map[string]struct{})
 	for _, output := range tx.Vout {
 		if output.ScriptpubkeyAddress == nil {
 			continue
 		}
 		switch *output.ScriptpubkeyType {
-		case p2shType:
-			// use the first registered p2sh address
-			p2shAddress := *output.ScriptpubkeyAddress
-			if _, exist := p2shAddressMap[p2shAddress]; exist {
-				continue
-			}
-			p2shAddressMap[p2shAddress] = struct{}{}
-			p2shBindAddr := tools.GetP2shBindAddress(p2shAddress)
-			if p2shBindAddr != "" {
-				p2shBindAddrs = append(p2shBindAddrs, p2shBindAddr)
-			}
-		case p2pkhType:
-			if p2pkhSwapinPrior && *output.ScriptpubkeyAddress == depositAddress {
-				return nil, nil // use p2pkh if exist
+		case p2shType, p2pkhType:
+			if *output.ScriptpubkeyAddress == depositAddress {
+				return nil
 			}
 		}
 	}
-	if len(p2shBindAddrs) > 0 {
-		return p2shBindAddrs, nil
-	}
-	return nil, tokens.ErrTxWithWrongReceiver
+	return tokens.ErrTxWithWrongReceiver
 }

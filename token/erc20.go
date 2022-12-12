@@ -1,7 +1,7 @@
 package token
 
 import (
-	com "github.com/weijun-sh/balance/common"
+	com "github.com/weijun-sh/monitor-balance/common"
 )
 
 var erc20CodeParts = map[string][]byte{
