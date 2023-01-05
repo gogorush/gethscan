@@ -32,3 +32,4 @@ func initCollection(table string, collection **mgo.Collection, indexKey ...strin
 		_ = (*collection).EnsureIndexKey(indexKey...)
 	}
 }
+

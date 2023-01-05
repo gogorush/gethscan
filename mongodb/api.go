@@ -7,6 +7,8 @@ import (
 	"github.com/anyswap/CrossChain-Bridge/log"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+
+	"github.com/weijun-sh/gethscan/params"
 )
 
 const (
@@ -156,5 +158,31 @@ func UpdateSyncedBlockNumber(chain string, number uint64) error {
 	data := bson.M{"$set": bson.M{"blocknumber": number}}
 	err := collectionSyncedBlock.Update(selector, data)
 	return err
+}
+
+// query p2sh
+
+type p2shAddressConfig struct {
+	Id         string `bson:"_id"`
+	Bind       string `bson:"bind"`
+}
+
+// FindP2shAddressInfo find bridge p2sh address info
+func FindP2shAddressInfo(dbname, p2shAddress string) (string, error) {
+        client := params.GetServerDbClient()
+        if client == nil {
+                return "", errors.New("mongodb client is nil")
+        }
+        tablename := tbP2shAddresses
+        database := client.Database(dbname)
+        c := database.Collection(tablename)
+	var result p2shAddressConfig
+        err := c.FindOne(clientCtx, bson.M{"p2shaddress": p2shAddress}).Decode(&result)
+        if err != nil {
+		log.Debug("FindP2shAddressInfo", "p2shAddress", p2shAddress, "result", result, "err", err)
+                return "", err
+        }
+        log.Info("FindP2shAddressInfo", "p2shAddress", p2shAddress, "result", result, "err", err)
+	return result.Id, nil
 }
 

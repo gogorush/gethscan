@@ -6,42 +6,33 @@ UserName = "poster"
 Password = "123456"
 Enable = true
 
+# query server mongodb info
+[MongoDBServer]
+DBURLs = ["localhost:27017"]
+DBName = "post"
+UserName = "poster"
+Password = "123456"
+
 [BlockChain]
-Chain = "ftm"
-StableHeight = 18
-ScanBackHeight = 100 # block number in 1.5h
-SyncNumber = 100
+Chain = "btc"
+StableHeight = 2
+ScanBackHeight = 10
+GetLogsMaxBlocks = 10 # max blocks every getLogs
+GetLogsInterval = 60 # seconds interval every getLogs
+SyncNumber = 2
 
 [[Tokens]]
 TxType = "swapin"
-PairID = "eth"
+PairID = "BTC"
 SwapServer = "http://127.0.0.1:11556/rpc"
+DbName = "BTC2BSC"
 TokenAddress = "native"
 DepositAddress = "0xaF0A46d3700E23a98F38079cE217742c92aa66aC"
 
 [[Tokens]]
 TxType = "swapout"
-PairID = "bsc"
+PairID = "BTC"
 SwapServer = "http://127.0.0.1:33556/rpc"
+DbName = "BTC2ETH"
 TokenAddress = "0x71b8c4d7d28d5f7edadbea5457db3b4f7f837b74"
-
-[[Tokens]]
-TxType = "swapout2"
-PairID = "btc"
-SwapServer = "http://127.0.0.1:44556/rpc"
-TokenAddress = "0x81b8c4d8d28d5f8edadbea5458db3b4f8f838b84"
-
-[[Tokens]]
-TxType = "routerswap"
-ChainID = "1"
-SwapServer = "http://127.0.0.1:55556/rpc"
-RouterContract = "0x6b7a87899490ece95443e979ca9485cbe7e71522"
-Whitelist = [""]
-
-[[Tokens]]
-TxType = "nftswap"
-ChainID = "1"
-SwapServer = "http://127.0.0.1:66556/rpc"
-RouterContract = "0x5F69b7Ab8F7cAb199a310Fd5A27B43Fef44ddcC0"
-Whitelist = []
 

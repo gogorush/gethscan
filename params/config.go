@@ -10,6 +10,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/anyswap/CrossChain-Bridge/common"
 	"github.com/anyswap/CrossChain-Bridge/log"
+
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // swap tx types
@@ -27,24 +29,35 @@ var (
 	configFile string
 	scanConfig = &ScanConfig{}
 	mongodbConfig = &MongoDBConfig{}
+	serverDbConfig = &MongoDBServerConfig{}
+	serverDbClient *mongo.Client
 	blockchainConfig = &BlockChainConfig{}
 	HaveReloadConfig bool = false
 	reloadMutex sync.Mutex
 )
 
 type Config struct {
-       MongoDB *MongoDBConfig
+	MongoDB *MongoDBConfig
+	MongoDBServer *MongoDBServerConfig
 	BlockChain *BlockChainConfig
-       Tokens  []*TokenConfig
+	Tokens  []*TokenConfig
 }
 
 // MongoDBConfig mongodb config
 type MongoDBConfig struct {
-       DBURL      string
-       DBName     string
-       UserName   string `json:"-"`
-       Password   string `json:"-"`
+	DBURL     string
+	DBName    string
+	UserName  string `json:"-"`
+	Password  string `json:"-"`
 	Enable    bool
+}
+
+// MongoDBServerConfig mongodb config
+type MongoDBServerConfig struct {
+	DBURLs    []string
+	DBName    string
+	UserName  string `json:"-"`
+	Password  string `json:"-"`
 }
 
 type BlockChainConfig struct {
@@ -70,6 +83,7 @@ type TokenConfig struct {
 	// bridge
 	PairID         string `toml:",omitempty" json:",omitempty"`
 	TokenAddress   string `toml:",omitempty" json:",omitempty"`
+	DbName         string `toml:",omitempty" json:",omitempty"`
 	DepositAddress string `toml:",omitempty" json:",omitempty"`
 
 	// router
@@ -77,9 +91,22 @@ type TokenConfig struct {
 	RouterContract string `toml:",omitempty" json:",omitempty"`
 }
 
+func SetServerDbClient(client *mongo.Client) {
+        serverDbClient = client
+}
+
+func GetServerDbClient() *mongo.Client {
+        return serverDbClient
+}
+
 // GetMongodbConfig get mongodb config
 func GetMongodbConfig() *MongoDBConfig {
        return mongodbConfig
+}
+
+// GetServerDbsConfig get server db config
+func GetServerDbsConfig() *MongoDBServerConfig {
+        return serverDbConfig
 }
 
 // GetBlockChainConfig get blockchain config
@@ -118,6 +145,7 @@ func LoadConfig(filePath string) *ScanConfig {
 	log.Println("LoadConfig finished.", string(bs))
 
        mongodbConfig = config.MongoDB
+       serverDbConfig = config.MongoDBServer
 	blockchainConfig = config.BlockChain
        scanConfig.Tokens = config.Tokens
 
@@ -293,13 +321,13 @@ func (c *TokenConfig) CheckConfig() error {
 		if !c.IsNativeToken() && !common.IsHexAddress(c.TokenAddress) {
 			return errors.New("wrong 'TokenAddress' " + c.TokenAddress)
 		}
-		if c.DepositAddress != "" && !common.IsHexAddress(c.DepositAddress) {
-			return errors.New("wrong 'DepositAddress' " + c.DepositAddress)
-		}
+		//if c.DepositAddress != "" && !common.IsHexAddress(c.DepositAddress) {
+		//	return errors.New("wrong 'DepositAddress' " + c.DepositAddress)
+		//}
 	case c.IsRouterSwap():
-		if !common.IsHexAddress(c.RouterContract) {
-			return errors.New("wrong 'RouterContract' " + c.RouterContract)
-		}
+		//if !common.IsHexAddress(c.RouterContract) {
+		//	return errors.New("wrong 'RouterContract' " + c.RouterContract)
+		//}
 		if _, err := common.GetBigIntFromStr(c.ChainID); err != nil {
 			return fmt.Errorf("wrong chainID '%v', %w", c.ChainID, err)
 		}

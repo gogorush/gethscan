@@ -15,8 +15,8 @@ var (
 	dialInfo *mgo.DialInfo
 )
 
-// MongoServerInit int mongodb server session
-func MongoServerInit(addrs []string, dbname, user, pass string) {
+// MongoInit int mongodb server session
+func MongoInit(addrs []string, dbname, user, pass string) {
 	log.Info("MongoServerInit", "dbname", dbname)
 	initDialInfo(addrs, dbname, user, pass)
 	mongoConnect()

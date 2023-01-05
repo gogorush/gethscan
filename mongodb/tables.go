@@ -9,11 +9,14 @@ const (
 	tbSwapPending string = "pending"
 	tbSwapDeleted string = "deleted"
 	tbSyncedBlock string = "syncedBlock"
+
+	tbP2shAddresses string = "P2shAddresses"
 )
 
 type MgoSwap struct {
 	Id         string `bson:"_id"` //txid
 	PairID     string `bson:"pairID"`    //"FXSv4"
+	Bind       string `bson:"bind"`      //"bind"
 	RpcMethod  string `bson:"rpcMethod"` //"swap.Swapin"
 	SwapServer string `bson:"swapServer"`
         ChainID    string `bson:"chainid"`
