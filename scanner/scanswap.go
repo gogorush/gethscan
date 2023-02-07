@@ -493,6 +493,7 @@ func (scanner *ethSwapScanner) scanTransaction(height, index uint64, tx *types.T
 }
 
 func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
+	isAcceptToAddr = scanner.scanReceipt // init
 	needReceipt := scanner.scanReceipt
 	txtoAddress := tx.To().String()
 
