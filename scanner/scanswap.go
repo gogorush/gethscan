@@ -212,7 +212,7 @@ func scanSwap(ctx *cli.Context) error {
 		"timeout", scanner.processBlockTimeout,
 	)
 
-	scanner.initClient()
+	//scanner.initClient()
 
 	bcConfig := params.GetBlockChainConfig()
        chain = bcConfig.Chain
@@ -358,15 +358,17 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	log.Info("start scan loop job", "from", from, "stable", stable)
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
-		for h := from; h <= latest; h++ {
-			scanner.scanBlock(0, h, true)
+		end := latest - stable
+		if end <= 0 {
+			end = latest
+		}
+		scanner.doScanRangeJob(from, end)
+		for h := from; h <= end; h++ {
 			if mongodbEnable {
 				updateSyncdBlockNumber(h)
 			}
 		}
-		if from+stable < latest {
-			from = latest - stable
-		}
+		from = end
 		if synced && params.GetHaveReloadConfig() {
 			synced = false
 			from -= scanBack
@@ -407,18 +409,6 @@ func updateSyncdBlockNumber(number uint64) {
 	}
 }
 
-func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
-	for { // retry until success
-		header, err := scanner.client.HeaderByNumber(scanner.ctx, nil)
-		if err == nil {
-			log.Info("get latest block number success", "height", header.Number)
-			return header.Number.Uint64()
-		}
-		log.Warn("get latest block number failed", "err", err)
-		time.Sleep(scanner.rpcInterval)
-	}
-}
-
 func (scanner *ethSwapScanner) loopGetTxReceipt(txHash common.Hash) (receipt *types.Receipt, err error) {
 	for i := 0; i < 5; i++ { // with retry
 		receipt, err = scanner.client.TransactionReceipt(scanner.ctx, txHash)
@@ -434,61 +424,33 @@ func (scanner *ethSwapScanner) loopGetTxReceipt(txHash common.Hash) (receipt *ty
 	return nil, err
 }
 
-func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, err error) {
-	blockNumber := new(big.Int).SetUint64(height)
-	for i := 0; i < 5; i++ { // with retry
-		block, err = scanner.client.BlockByNumber(scanner.ctx, blockNumber)
-		if err == nil {
-			return block, nil
-		}
-		log.Warn("get block failed", "height", height, "err", err)
-		time.Sleep(scanner.rpcInterval)
-	}
-	return nil, err
-}
-
 func (scanner *ethSwapScanner) scanBlock(job, height uint64, cache bool) {
 	block, err := scanner.loopGetBlock(height)
 	if err != nil {
 		return
 	}
-	blockHash := block.Hash().Hex()
+	blockHash := block.Blockhash
 	if cache && cachedBlocks.isScanned(blockHash) {
 		return
 	}
-	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", len(block.Transactions()))
-
-	go scanner.getLogs(height, height, false)
-
+	txs := block.Transactions
+	length := len(txs)
+	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", length)
 	scanner.processBlockTimers[job].Reset(scanner.processBlockTimeout)
 SCANTXS:
-	for i, tx := range block.Transactions() {
+	for i := 0; i < length; i++ {
 		select {
 		case <-scanner.processBlockTimers[job].C:
-			log.Warn(fmt.Sprintf("[%v] scan block %v timeout", job, height), "hash", blockHash, "txs", len(block.Transactions()))
+			log.Warn(fmt.Sprintf("[%v] scan block %v timeout", job, height), "hash", blockHash, "txs", length)
 			break SCANTXS
 		default:
-			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", tx.Hash().Hex())
-			scanner.scanTransaction(height, uint64(i), tx)
+			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", txs[i].Transaction.Signatures)
+			//go scanner.scanTransaction(height, txs[i].Transaction)
+			scanner.scanTransaction(height, txs[i].Transaction)
 		}
 	}
 	if cache {
 		cachedBlocks.addBlock(blockHash)
-	}
-}
-
-func (scanner *ethSwapScanner) scanTransaction(height, index uint64, tx *types.Transaction) {
-	if tx.To() == nil {
-		return
-	}
-
-	txHash := tx.Hash().Hex()
-
-	for _, tokenCfg := range params.GetScanConfig().Tokens {
-		verifyErr := scanner.verifyTransaction(height, index, tx, tokenCfg)
-		if verifyErr != nil {
-			log.Debug("verify tx failed", "txHash", txHash, "err", verifyErr)
-		}
 	}
 }
 
@@ -537,56 +499,6 @@ func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg 
 	}
 
 	return receipt, true
-}
-
-func (scanner *ethSwapScanner) verifyTransaction(height, index uint64, tx *types.Transaction, tokenCfg *params.TokenConfig) (verifyErr error) {
-	receipt, isAcceptToAddr := scanner.checkTxToAddress(tx, tokenCfg)
-	if !isAcceptToAddr {
-		log.Debug("verifyTransaction !isAcceptToAddr return", "txHash", tx.Hash().Hex())
-		return nil
-	}
-
-	txHash := tx.Hash().Hex()
-
-	switch {
-	// router swap
-	case tokenCfg.IsRouterSwapAll():
-		log.Debug("verifyTransaction IsRouterSwapAll", "txHash", txHash)
-		scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
-		return nil
-
-	// bridge swapin
-	case tokenCfg.DepositAddress != "":
-		if tokenCfg.IsNativeToken() {
-			scanner.postBridgeSwap(txHash, tokenCfg)
-			return nil
-		}
-
-		verifyErr = scanner.verifyErc20SwapinTx(tx, receipt, tokenCfg)
-		// swapin my have multiple deposit addresses for different bridges
-		if errors.Is(verifyErr, tokens.ErrTxWithWrongReceiver) {
-			return nil
-		}
-
-	// bridge swapout
-	default:
-		if scanner.scanReceipt {
-			verifyErr = scanner.parseSwapoutTxLogs(receipt.Logs, tokenCfg)
-		} else {
-			verifyErr = scanner.verifySwapoutTx(tx, receipt, tokenCfg)
-		}
-	}
-
-	if verifyErr == nil {
-		if chainIsRSK(chain) {
-			hash, err := scanner.getTxHash4RSK(height, index)
-			if err == nil {
-				txHash = hash
-			}
-		}
-		scanner.postBridgeSwap(txHash, tokenCfg)
-	}
-	return verifyErr
 }
 
 func chainIsRSK(chain string) bool {
@@ -956,65 +868,6 @@ func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *t
 		err = scanner.parseSwapoutTxLogs(receipt.Logs, tokenCfg)
 	}
 	return err
-}
-
-func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) {
-	if scanner.ignoreType(tokenCfg.TxType) {
-		scanner.postRouterSwap(tx.Hash().Hex(), 0, tokenCfg)
-		return
-	}
-	if receipt == nil {
-		log.Debug("verifyAndPostRouterSwapTx receipt is nil", "txhash", tx.Hash().Hex())
-		return
-	}
-	for i := 0; i < len(receipt.Logs); i++ {
-		rlog := receipt.Logs[i]
-		if rlog.Removed {
-			log.Debug("verifyAndPostRouterSwapTx removed", "log(i)", i, "txhash", tx.Hash().Hex())
-			continue
-		}
-		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
-			log.Debug("verifyAndPostRouterSwapTx", "address", rlog.Address.String(), "txhash", tx.Hash().Hex())
-			continue
-		}
-		logTopic := rlog.Topics[0].Bytes()
-		switch {
-		case tokenCfg.IsRouterERC20Swap():
-			switch {
-			case bytes.Equal(logTopic, routerAnySwapOutTopic):
-			case bytes.Equal(logTopic, routerAnySwapOutTopic2):
-			case bytes.Equal(logTopic, routerAnySwapTradeTokensForTokensTopic):
-			case bytes.Equal(logTopic, routerAnySwapTradeTokensForNativeTopic):
-			case bytes.Equal(logTopic, routerCrossDexTopic):
-			case bytes.Equal(logTopic, routerAnySwapOutV7Topic):
-			case bytes.Equal(logTopic, routerAnySwapOutAndCallV7Topic):
-				log.Debug("verifyAndPostRouterSwapTx IsRouterERC20Swap", "logTopic", logTopic)
-			default:
-				continue
-			}
-		case tokenCfg.IsRouterNFTSwap():
-			switch {
-			case bytes.Equal(logTopic, routerNFT721SwapOutTopic):
-			case bytes.Equal(logTopic, routerNFT1155SwapOutTopic):
-			case bytes.Equal(logTopic, routerNFT1155SwapOutBatchTopic):
-				log.Debug("verifyAndPostRouterSwapTx IsRouterNFTSwap", "logTopic", logTopic)
-			default:
-				continue
-			}
-		case tokenCfg.IsRouterAnycallSwap():
-			switch {
-			case bytes.Equal(logTopic, routerAnycallTopic):
-			case bytes.Equal(logTopic, routerAnycallTransferSwapOutTopic):
-			case bytes.Equal(logTopic, routerAnycallV6Topic):
-			case bytes.Equal(logTopic, routerAnycallV7Topic):
-			case bytes.Equal(logTopic, routerAnycallV7Topic2):
-				log.Debug("verifyAndPostRouterSwapTx IsRouterAnycallSwap", "logTopic", logTopic)
-			default:
-				continue
-			}
-		}
-		scanner.postRouterSwap(tx.Hash().Hex(), i, tokenCfg)
-	}
 }
 
 func (scanner *ethSwapScanner) parseErc20SwapinTxInput(input []byte, depositAddress string) error {
