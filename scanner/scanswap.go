@@ -506,14 +506,14 @@ func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
 		end := getEndBlock(latest, stable)
-		fmt.Printf("\nlatest: %v, end: %v, stable: %v, from: %v\n", latest, end, stable, from)
-                for h := from; h <= end; {
+		log.Info("scanLoop", "latest", latest, "end", end, "stable", stable, "from", from)
+                for h := from; h < end; {
 			to := countFilterLogsBlock(h, end)
-			scanner.scanRange(1, from, to, nil)
+			scanner.scanRange(1, h, to, nil)
                         if mongodbEnable {
                                 updateSyncdBlockNumber(h, to)
                         }
-			h = to + 1
+			h = to
 			time.Sleep(time.Second * 1)
                 }
 		if from < end {
