@@ -126,7 +126,6 @@ var startHeightArgument int64
 var (
 	chain              string
 	mongodbEnable      bool
-	registerEnable     bool
 	syncedNumber       uint64
 	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
@@ -139,7 +138,6 @@ var (
 
 	registerMethod       = "swap.RegisterSwap"
 	registerRouterMethod = "swap.RegisterSwapRouter"
-	registerServer       string
 
 	configFile chan bool = make(chan bool)
 
@@ -258,10 +256,6 @@ func filterlogs(ctx *cli.Context) error {
 		"jobs", scanner.jobCount,
 		"timeout", scanner.processBlockTimeout,
 	)
-
-	rConfig := params.GetRegisterConfig()
-	registerServer = rConfig.Rpc
-	registerEnable = rConfig.Enable
 
 	//mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -714,11 +708,7 @@ func (scanner *ethSwapScanner) postSwap(swap *swapPost) {
 	var needPending bool
 	var err error
 	for i := 0; i < scanner.rpcRetryCount; i++ {
-		if registerEnable {
-			err = rpcPostRegister(swap)
-		} else {
-			err = rpcPost(swap)
-		}
+		err = rpcPost(swap)
 		if err == nil {
 			break
 		}
@@ -936,104 +926,13 @@ func checkRouterStatus(status string, args interface{}) error {
         return err
 }
 
-func rpcPostRegister(swap *swapPost) error {
-	var isRouterSwap bool
-	var register string
-	var args interface{}
-	if swap.pairID != "" {
-		args = map[string]interface{}{
-			"method":     swap.rpcMethod,
-			"pairid":     swap.pairID,
-			"txid":       swap.txid,
-			"chain":      swap.chain,
-			"swapServer": swap.swapServer,
-		}
-		register = registerMethod
-	} else if swap.logIndex != "" {
-		isRouterSwap = true
-		args = map[string]string{
-			"method":     swap.rpcMethod,
-			"chainid":    swap.chainID,
-			"txid":       swap.txid,
-			"logindex":   swap.logIndex,
-			"chain":      swap.chain,
-			"swapServer": swap.swapServer,
-		}
-		register = registerRouterMethod
-	} else {
-		return fmt.Errorf("wrong register post item %v", swap)
-	}
-
-	timeout := 300
-	reqID := 666
-	var result interface{}
-	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, registerServer, register, args)
-
-	if err != nil {
-		if strings.Contains(err.Error(), bridgeSwapExistKeywords) ||
-			strings.Contains(err.Error(), routerSwapExistResult) ||
-			strings.Contains(err.Error(), routerSwapExistResultTmp) {
-			err = nil // ignore this kind of error
-			log.Info("post bridge swap register already exist", "swap", args)
-		} else {
-			log.Warn("post bridge swap register failed", "swap", args, "server", swap.swapServer, "err", err)
-		}
-		return err
-	}
-
-	if !isRouterSwap {
-		log.Info("post bridge swap success", "swap", args, "registerServer", registerServer)
-		return nil
-	} else {
-		log.Info("post router swap success", "swap", args, "registerServer", registerServer)
-		return nil
-	}
-	return nil
-}
-
-//func rpcPostRegisterPending(swap *swapPost) error {
-//	spew.Printf("rpcPostRegisterPending, swap: %v\n", swap)
-//	var args interface{}
-//	if swap.pairID != "" {
-//		args = map[string]interface{}{
-//			"chain": swap.chain,
-//			"token": swap.token,
-//			"txid":  swap.txid,
-//		}
-//	} else {
-//		return fmt.Errorf("wrong register post item %v", swap)
-//	}
-//
-//	timeout := 300
-//	reqID := 666
-//	var result interface{}
-//	err := client.RPCPostWithTimeoutAndID(&result, timeout, reqID, registerServer, registerMethod, args)
-//
-//	if err != nil {
-//		if strings.Contains(err.Error(), bridgeSwapExistKeywords) {
-//			err = nil // ignore this kind of error
-//			log.Info("post bridge swap register already exist", "swap", args)
-//		} else {
-//			log.Warn("post bridge swap register failed", "swap", args, "server", swap.swapServer, "err", err)
-//		}
-//		return err
-//	}
-//
-//	log.Info("post bridge swap success", "swap", args)
-//	return nil
-//}
-
 // repostRegisterSwap
 // return: bool - true:success / false:fail
 //         bool - true:repost / false:delete
 func (scanner *ethSwapScanner) repostRegisterSwap(swap *swapPost) (bool, bool) {
 	var err error
 	for i := 0; i < scanner.rpcRetryCount; i++ {
-		if registerEnable {
-			err = rpcPostRegister(swap)
-		} else {
-			err = rpcPost(swap)
-		}
+		err = rpcPost(swap)
 		if err == nil {
 			return true, false
 		}
