@@ -13,12 +13,14 @@ const (
 )
 
 type MgoSwap struct {
-	Id         string `bson:"_id"`       //txid
+	Id         string `bson:"_id"`       //chainid:txid:tochainid
+	Txid       string `bson:"txid"`
 	PairID     string `bson:"pairID"`    //"FXSv4"
 	RpcMethod  string `bson:"rpcMethod"` //"swap.Swapin"
 	SwapServer string `bson:"swapServer"`
 	Chain      string `bson:"chain"`
 	ChainID    string `bson:"chainid"`
+	ToChainID  string `bson:"tochainid"`
 	LogIndex   string `bson:"logIndex"`
 	Timestamp  uint64 `bson:"timestamp"`
 }

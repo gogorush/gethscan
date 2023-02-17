@@ -107,6 +107,7 @@ scan cross chain swaps
 const (
 	postSwapSuccessResult          = "success"
 	bridgeSwapExistKeywords        = "mgoError: Item is duplicate"
+	mongodbExistKeywords           = "E11000 duplicate key error collection"
 	routerSwapExistResult          = "already registered"
 	routerSwapExistResultTmp       = "alreday registered"
 	httpTimeoutKeywords            = "Client.Timeout exceeded while awaiting headers"
@@ -195,6 +196,7 @@ type swapPost struct {
 
 	// router
 	chainID  string
+	toChainID string
 	logIndex string
 }
 
@@ -744,13 +746,14 @@ func (scanner *ethSwapScanner) postSwap(swap *swapPost) {
 	}
 }
 
-func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCfg *params.TokenConfig) {
+func (scanner *ethSwapScanner) postRouterSwap(txid, tochainid string, logIndex int, tokenCfg *params.TokenConfig) {
 	chainID := tokenCfg.ChainID
 	rpcMethod := "swap.RegisterRouterSwap"
 
 	swap := &swapPost{
 		txid:       txid,
 		chainID:    chainID,
+		toChainID:  tochainid,
 		logIndex:   fmt.Sprintf("%d", logIndex),
 		rpcMethod:  rpcMethod,
 		chain:      chain,
@@ -768,12 +771,15 @@ func (scanner *ethSwapScanner) postRouterSwap(txid string, logIndex int, tokenCf
 }
 
 func (scanner *ethSwapScanner) addMongodbSwapPendingPost(swap *swapPost) {
+	id := fmt.Sprintf("%v:%v:%v:%v", swap.chainID, swap.txid, swap.toChainID, swap.logIndex)
 	ms := &mongodb.MgoSwap{
-		Id:         swap.txid,
+		Id:         id,
+		Txid:       swap.txid,
 		PairID:     swap.pairID,
 		RpcMethod:  swap.rpcMethod,
 		SwapServer: swap.swapServer,
 		ChainID:    swap.chainID,
+		ToChainID:  swap.toChainID,
 		LogIndex:   swap.logIndex,
 		Chain:      chain,
 		Timestamp:  uint64(time.Now().Unix()),
@@ -781,6 +787,9 @@ func (scanner *ethSwapScanner) addMongodbSwapPendingPost(swap *swapPost) {
 	for i := 0; i < scanner.rpcRetryCount; i++ {
 		err := mongodb.AddSwapPending(ms, false)
 		if err == nil {
+			break
+		}
+                if strings.Contains(err.Error(), mongodbExistKeywords) {
 			break
 		}
 		time.Sleep(5 * scanner.rpcInterval)
@@ -1211,7 +1220,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 		for i, swap := range sp {
 			log.Info("loopSwapPending", "swap", swap, "index", i)
 			sp := swapPost{}
-			sp.txid = swap.Id
+			sp.txid = swap.Txid
 			sp.pairID = swap.PairID
 			sp.rpcMethod = swap.RpcMethod
 			sp.swapServer = swap.SwapServer
@@ -1372,7 +1381,11 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 				log.Debug("Find event filterLogsRouterChan", "txhash", txhash, "key not config", key)
 				continue
 			}
-			scanner.postRouterSwap(txhash, logIndex, token)
+			if !isTokenContract(&rlog, token) {
+				continue
+			}
+			tochainid := getToChainid(&rlog)
+			scanner.postRouterSwap(txhash, tochainid, logIndex, token)
 
 		case rlog := <-filterLogsRouterNFTChan:
 			txhash := rlog.TxHash.String()
@@ -1384,7 +1397,8 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 				log.Debug("Find event filterLogsRouterNFTChan", "txhash", txhash, "key not config", key)
 				continue
 			}
-			scanner.postRouterSwap(txhash, logIndex, token)
+			tochainid := getToChainid(&rlog)
+			scanner.postRouterSwap(txhash, tochainid, logIndex, token)
 
 		case rlog := <-filterLogsRouterAnycallChan:
 			txhash := rlog.TxHash.String()
@@ -1396,9 +1410,42 @@ func (scanner *ethSwapScanner) loopFilterChain() {
 				log.Debug("Find event filterLogsRouterAnycallChan", "txhash", txhash, "key not config", key)
 				continue
 			}
-			scanner.postRouterSwap(txhash, logIndex, token)
+			tochainid := getToChainid(&rlog)
+			scanner.postRouterSwap(txhash, tochainid, logIndex, token)
 		}
 	}
+}
+
+func getToChainid(rlog *types.Log) string {
+        logTopics := rlog.Topics
+        if len(logTopics) != 4 {
+                return ""
+        }
+        logData := rlog.Data
+        if len(logData) != 96 {
+                return ""
+        }
+	tochainid := GetBigInt(logData, 64, 32)
+	return tochainid.String()
+}
+
+func isTokenContract(rlog *types.Log, tokenconfig *params.TokenConfig) bool {
+	if tokenconfig == nil {
+		return false
+	}
+	contract := tokenconfig.TokenContract
+	if len(contract) == 0 {
+		return true
+	}
+	if len(rlog.Topics) >= 2 {
+		for _, token := range contract {
+			topic1 := common.BytesToAddress(rlog.Topics[1][:]).Hex()
+			if strings.EqualFold(topic1, token) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (scanner *ethSwapScanner) getIndexPosition(txhash common.Hash, index uint) int {

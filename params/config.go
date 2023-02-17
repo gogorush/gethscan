@@ -87,6 +87,7 @@ type TokenConfig struct {
 	// router
 	ChainID        string `toml:",omitempty" json:",omitempty"`
 	RouterContract string `toml:",omitempty" json:",omitempty"`
+	TokenContract  []string `toml:",omitempty" json:",omitempty"`
 }
 
 // GetMongodbConfig get mongodb config
