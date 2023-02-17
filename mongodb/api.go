@@ -60,6 +60,21 @@ func AddSwapPending(ms *MgoSwap, overwrite bool) (err error) {
 	return err
 }
 
+// AddSwapPendingAfterPeriod add pending
+func AddSwapPendingAfterPeriod(ms *MgoSwap, overwrite bool) (err error) {
+	if overwrite {
+		_, err = collectionSwapPendingAfterPeriod.UpsertId(ms.Id, ms)
+	} else {
+		err = collectionSwapPendingAfterPeriod.Insert(ms)
+	}
+	if err == nil {
+		log.Info("[mongodb] AddSwapPending after period success", "pending", ms)
+	} else {
+		log.Warn("[mongodb] AddSwapPending after period failed", "pending", ms, "err", err)
+	}
+	return err
+}
+
 // AddSwapDeleted add deleted
 func AddSwapDeleted(ms *MgoSwap, overwrite bool) (err error) {
 	if overwrite {
@@ -86,6 +101,17 @@ func RemoveSwapPending(id string) (err error) {
 	return err
 }
 
+// RemoveSwapPendingAfterPeriod add remove pending
+func RemoveSwapPendingAfterPeriod(id string) (err error) {
+	err = collectionSwapPendingAfterPeriod.Remove(bson.M{"_id": id})
+	if err == nil {
+		log.Info("[mongodb] RemoveSwapPendingAfterPerio success", "pending", id)
+	} else {
+		log.Warn("[mongodb] RemoveSwapPendingAfterPerio failed", "pending", id, "err", err)
+	}
+	return err
+}
+
 // --------------- find ---------------------------------
 // FindswapPending find by swap
 func FindswapPending(swap string) (*MgoSwap, error) {
@@ -98,10 +124,23 @@ func FindswapPending(swap string) (*MgoSwap, error) {
 	return &res, nil
 }
 
-// FindAllTokenAccounts find accounts
 func FindAllSwapPending(chain string, offset, limit int) ([]*MgoSwap, error) {
 	result := make([]*MgoSwap, 0, limit)
 	q := collectionSwapPending.Find(bson.M{"chain": chain}).Skip(offset).Limit(limit)
+        err := q.All(&result)
+        if err != nil {
+                return nil, err
+        }
+        return result, nil
+}
+
+func FindAllSwapPendingAfterPeriodCount(chain string) (int, error) {
+	return collectionSwapPendingAfterPeriod.Find(bson.M{"chain": chain}).Count()
+}
+
+func FindAllSwapPendingAfterPeriod(chain string, offset, limit int) ([]*MgoSwap, error) {
+	result := make([]*MgoSwap, 0)
+	q := collectionSwapPendingAfterPeriod.Find(bson.M{"chain": chain}).Skip(offset).Limit(limit)
         err := q.All(&result)
         if err != nil {
                 return nil, err
@@ -114,6 +153,20 @@ func UpdateSwapPending(swap *MgoSwap) {
 
 	swap.Timestamp = uint64(time.Now().Unix())
 	AddSwap(swap, false)
+}
+
+func UpdateSwapPendingAfterPeriod(swap *MgoSwap) {
+	RemoveSwapPendingAfterPeriod(swap.Id)
+
+	swap.Timestamp = uint64(time.Now().Unix())
+	AddSwap(swap, false)
+}
+
+func DeleteSwapPendingAfterPeriod(swap *MgoSwap) {
+	RemoveSwapPendingAfterPeriod(swap.Id)
+
+	swap.Timestamp = uint64(time.Now().Unix())
+	AddSwapDeleted(swap, false)
 }
 
 func FindSyncedBlockNumber(chain string) (uint64, error) {

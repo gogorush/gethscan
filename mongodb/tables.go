@@ -8,6 +8,7 @@ const (
 	tbSwap              string = "scanSwap"
 	tbSwapPending       string = "scanPending"
 	tbSwapRouterPending string = "scanRouterPending"
+	tbSwapPendingAfterPending string = "scanPendingAfterPeriod"
 	tbSwapDeleted       string = "scanDeleted"
 	tbSyncedBlock       string = "syncedBlock"
 )

@@ -7,16 +7,16 @@ import (
 var (
 	collectionSwap        *mgo.Collection
 	collectionSwapPending *mgo.Collection
-	//collectionSwapRouterPending *mgo.Collection
 	collectionSwapDeleted *mgo.Collection
 	collectionSyncedBlock *mgo.Collection
+	collectionSwapPendingAfterPeriod *mgo.Collection
 )
 
 // do this when reconnect to the database
 func deinintCollections() {
 	collectionSwap = database.C(tbSwap)
 	collectionSwapPending = database.C(tbSwapPending)
-	//collectionSwapRouterPending = database.C(tbSwapRouterPending)
+	collectionSwapPendingAfterPeriod = database.C(tbSwapPendingAfterPending)
 	collectionSwapDeleted = database.C(tbSwapDeleted)
 	collectionSyncedBlock = database.C(tbSyncedBlock)
 }
@@ -24,7 +24,7 @@ func deinintCollections() {
 func initCollections() {
 	initCollection(tbSwap, &collectionSwap, "txid")
 	initCollection(tbSwapPending, &collectionSwapPending, "txid")
-	//initCollection(tbSwapRouterPending, &collectionSwapRouterPending, "txid")
+	initCollection(tbSwapPendingAfterPending, &collectionSwapPendingAfterPeriod, "txid")
 	initCollection(tbSwapDeleted, &collectionSwapDeleted, "txid")
 	initCollection(tbSyncedBlock, &collectionSyncedBlock, "chain")
 }
