@@ -227,7 +227,7 @@ func filterlogs(ctx *cli.Context) error {
 	scanner.jobCount = ctx.Uint64(utils.JobsFlag.Name)
 	scanner.processBlockTimeout = time.Duration(ctx.Uint64(timeoutFlag.Name)) * time.Second
 
-	scanner.initClient()
+	scanner.getLatestClient()
 
 	bcConfig := params.GetBlockChainConfig()
 	if bcConfig.StableHeight > 0 {
@@ -327,6 +327,7 @@ func (scanner *ethSwapScanner) run(subscribe bool) {
 	initFilterChan()
 	defer closeFilterChain()
 	go scanner.loopFilterChain()
+	go AdjustGatewayOrder()
 
 	initFilerLogs()
 
@@ -618,7 +619,7 @@ func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 			}
 		}
 		log.Warn("get latest block number failed", "err", err)
-		time.Sleep(scanner.rpcInterval)
+		scanner.getLatestClient()
 	}
 }
 
@@ -670,10 +671,20 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
 			log.Info("filterLogs success", "from", from, "to", to)
 			return
 		}
-		log.Warn("filterLogs retry in 1 second", "error", err, "from", from, "to", to, "try", i)
-		time.Sleep(1 * time.Second)
+		log.Warn("filterLogs", "error", err, "from", from, "to", to, "try", i)
+		if i >= 2 {
+			scanner.getLatestClient()
+		}
 	}
 	log.Warn("filterLogs failed", "block from", from, "to", to)
+}
+
+func (scanner *ethSwapScanner) getLatestClient() {
+	scanner.closeScanner()
+	AdjustGatewayOrder()
+	gateway := params.GetGatewayConfig()
+	scanner.gateway = gateway.APIAddress[0]
+	scanner.initClient()
 }
 
 func (scanner *ethSwapScanner) postRegisterSwap(txid string, tokenCfg *params.TokenConfig) {

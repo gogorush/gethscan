@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/weijun-sh/gethscan/tools"
 	"github.com/BurntSushi/toml"
 	"github.com/anyswap/CrossChain-Bridge/common"
 	"github.com/anyswap/CrossChain-Bridge/log"
@@ -29,6 +30,7 @@ var (
 	scanConfig       = &ScanConfig{}
 	mongodbConfig    = &MongoDBConfig{}
 	blockchainConfig = &BlockChainConfig{}
+	gatewayConfig    = &GatewayConfig{}
 
 	HaveReloadConfig bool = false
 	reloadMutex sync.Mutex
@@ -37,6 +39,7 @@ var (
 type Config struct {
 	MongoDB    *MongoDBConfig
 	BlockChain *BlockChainConfig
+	Gateway    *GatewayConfig
 	Tokens     []*TokenConfig
 }
 
@@ -57,6 +60,12 @@ type BlockChainConfig struct {
 	GetLogsMaxBlocks uint64
 	GetLogsInterval  uint64
 	SyncNumber       uint64
+}
+
+type GatewayConfig struct {
+	APIAddress []string `toml:",omitempty" json:",omitempty"`
+	// internal usage
+	WeightedAPIs tools.WeightedStringSlice `toml:"-" json:"-"`
 }
 
 // ScanConfig scan config
@@ -93,6 +102,11 @@ func GetBlockChainConfig() *BlockChainConfig {
 	return blockchainConfig
 }
 
+// GetGatewayConfig get gateway config
+func GetGatewayConfig() *GatewayConfig {
+	return gatewayConfig
+}
+
 // IsNativeToken is native token
 func (c *TokenConfig) IsNativeToken() bool {
 	return c.TokenAddress == "native"
@@ -127,6 +141,7 @@ func LoadConfig(filePath string) *ScanConfig {
 
 	mongodbConfig = config.MongoDB
 	blockchainConfig = config.BlockChain
+	gatewayConfig = config.Gateway
 	scanConfig.Tokens = config.Tokens
 
 	if err := scanConfig.CheckConfig(); err != nil {

@@ -15,6 +15,10 @@ GetLogsMaxBlocks = 20 # max blocks every getLogs
 GetLogsInterval = 10 # seconds interval every getLogs
 SyncNumber = 100
 
+# gateway
+[Gateway]
+APIAddress = ["http://127.0.0.1:20920"]
+
 [[Tokens]]
 TxType = "swapin"
 PairID = "eth"
