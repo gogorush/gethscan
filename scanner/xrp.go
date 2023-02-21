@@ -23,13 +23,13 @@ type latestBlockConfig struct {
 }
 
 type latestBlockResultConfig struct {
-	Ledger_current_index uint64 `json:"ledger_current_index"`
+	Ledger_index uint64 `json:"ledger_index"`
 	Status string `json:"status"`
 }
 
 func GetLatestBlockNumber_XRP(url string) (uint64, error) {
 	//fmt.Printf("getBalance4XRP, url: %v, address: %v\n", url, address)
-	data := "{\"method\":\"ledger_current\",\"params\":[{}]}"
+	data := "{\"method\":\"ledger\",\"params\":[{\"ledger_index\":\"validated\",\"accounts\":false,\"full\":false,\"transactions\":true,\"expand\":false,\"owner_funds\":false}]}"
 	basket := latestBlockConfig{}
 	for i := 0; i < 1; i++ {
 		reader := bytes.NewReader([]byte(data))
@@ -55,7 +55,7 @@ func GetLatestBlockNumber_XRP(url string) (uint64, error) {
 		}
 		//fmt.Printf("%v basket.Result: %v\n", i, basket.Result)
 		if basket.Result.Status == "success" {
-			return basket.Result.Ledger_current_index, nil
+			return basket.Result.Ledger_index, nil
 		}
 	}
 	return 0, errors.New("GetLatestBlockNumber_XRP null")
