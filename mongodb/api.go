@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/anyswap/ANYToken-distribution/log"
+	"github.com/anyswap/CrossChain-Bridge/log"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
