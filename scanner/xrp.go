@@ -14,8 +14,6 @@ import (
 	//"github.com/davecgh/go-spew/spew"
 )
 
-var URL_xrp string = "https://s1.ripple.com:51234"
-
 func isXRP(chainid string) bool {
 	return strings.EqualFold(chainid, "xrp")
 }

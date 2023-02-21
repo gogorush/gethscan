@@ -191,7 +191,7 @@ func scanSwap(ctx *cli.Context) error {
 	}
 	scanner.stableHeight = bcConfig.StableHeight
 
-	scanner.initClient()
+	//scanner.initClient()
 
        //mongo
 	mgoConfig := params.GetMongodbConfig()
@@ -373,7 +373,7 @@ func updateSyncdBlockNumber(number uint64) {
 func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 	for { // retry until success
 		if isXRP(chain) {
-			header, err := GetLatestBlockNumber_XRP(URL_xrp)
+			header, err := GetLatestBlockNumber_XRP(scanner.gateway)
 			if err == nil {
 				log.Info("get latest block number success", "height", header)
 				return header
@@ -428,7 +428,7 @@ func (scanner *ethSwapScanner) scanBlock(job, height uint64, cache bool) {
 }
 
 func (scanner *ethSwapScanner) scanBlockXRP(job, height uint64, cache bool) {
-	block, err := GetBlock_XRP(URL_xrp, height)
+	block, err := GetBlock_XRP(scanner.gateway, height)
 	if err != nil {
 		return
 	}
@@ -486,7 +486,7 @@ SCANTXS:
 
 func (scanner *ethSwapScanner) scanTransactionXRP(txhash string) {
 	//log.Debug("GetTx_XRP", "txHash", txhash)
-	//tx, err := GetTx_XRP(URL_xrp, txhash)
+	//tx, err := GetTx_XRP(scanner.gateway, txhash)
 	//if err != nil {
 	//	return
 	//}
@@ -520,7 +520,7 @@ func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
 }
 
 func (scanner *ethSwapScanner) checkTxToAddressXRP(txHash string, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
-	tx, err := GetTx_XRP(URL_xrp, txHash)
+	tx, err := GetTx_XRP(scanner.gateway, txHash)
 	if err != nil {
 		return
 	}
