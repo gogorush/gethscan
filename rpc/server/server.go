@@ -16,7 +16,7 @@ import (
 	rpcjson "github.com/gorilla/rpc/v2/json2"
 
 	"github.com/anyswap/CrossChain-Bridge/cmd/utils"
-	"github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/weijun-sh/gethscan/log"
 	"github.com/anyswap/CrossChain-Bridge/params"
 	"github.com/anyswap/CrossChain-Bridge/rpc/restapi"
 	"github.com/anyswap/CrossChain-Bridge/rpc/rpcapi"

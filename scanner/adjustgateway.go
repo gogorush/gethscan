@@ -8,8 +8,9 @@ import (
 
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
-	"github.com/anyswap/CrossChain-Bridge/log"
 	"github.com/anyswap/CrossChain-Bridge/rpc/client"
+
+	"github.com/weijun-sh/gethscan/log"
 )
 
 var (

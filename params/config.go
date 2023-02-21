@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/weijun-sh/gethscan/log"
 	"github.com/weijun-sh/gethscan/tools"
 	"github.com/BurntSushi/toml"
 	"github.com/anyswap/CrossChain-Bridge/common"
-	"github.com/anyswap/CrossChain-Bridge/log"
 )
 
 const TEST bool = false

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/weijun-sh/gethscan/log"
 	"gopkg.in/mgo.v2"
 )
 

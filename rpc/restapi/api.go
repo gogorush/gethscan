@@ -8,7 +8,7 @@ import (
 
 	"github.com/anyswap/CrossChain-Bridge/common"
 	"github.com/anyswap/CrossChain-Bridge/internal/swapapi"
-	"github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/weijun-sh/gethscan/log"
 	"github.com/anyswap/CrossChain-Bridge/params"
 	"github.com/gorilla/mux"
 )

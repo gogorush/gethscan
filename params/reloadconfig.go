@@ -1,7 +1,7 @@
 package params
 
 import (
-	"github.com/anyswap/CrossChain-Bridge/log"
+	"github.com/weijun-sh/gethscan/log"
 	"github.com/fsnotify/fsnotify"
 )
 
