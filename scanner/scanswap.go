@@ -778,7 +778,7 @@ func (scanner *ethSwapScanner) addMongodbSwapPendingPost(swap *swapPost) {
 		Chain:      chain,
 		Timestamp:  uint64(time.Now().Unix()),
 	}
-	for i := 0; i < scanner.rpcRetryCount; i++ {
+	for i := 0; ; i++ {
 		err := mongodb.AddSwapPending(ms, false)
 		if err == nil {
 			break
