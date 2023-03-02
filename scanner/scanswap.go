@@ -218,6 +218,7 @@ func scanSwap(ctx *cli.Context) error {
 	)
 
 	scanner.initClient()
+	scanner.getLatestClient()
 
 	bcConfig := params.GetBlockChainConfig()
        chain = bcConfig.Chain
@@ -281,6 +282,7 @@ func (scanner *ethSwapScanner) run() {
 	scanner.cachedSwapPosts = tools.NewRing(100)
 	go scanner.repostCachedSwaps()
 
+	go AdjustGatewayOrder()
 	go scanner.initGetlogs()
 
 	scanner.processBlockTimers = make([]*time.Timer, scanner.jobCount+1)
@@ -348,7 +350,9 @@ func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
 }
 
 func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGroup) {
-	defer wg.Done()
+	if wg != nil {
+		defer wg.Done()
+	}
 	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
 
 	for h := from; h < to; h++ {
@@ -361,16 +365,14 @@ func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGrou
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
 	scanBack := scanner.scanBackHeight
-	log.Info("start scan loop job", "from", from, "stable", stable)
 	for {
 		latest := scanner.loopGetLatestBlockNumber()
-		for h := from; h <= latest; h++ {
-			scanner.scanBlock(0, h, true)
-			if mongodbEnable {
-				updateSyncdBlockNumber(h)
-			}
+		log.Info("scanLoop", "latest", latest, "stable", stable, "from", from)
+		scanner.doScanRangeJob(from, latest)
+		if mongodbEnable {
+			updateSyncdBlockNumber(from, latest)
 		}
-		if from+stable < latest {
+		if from < latest - stable {
 			from = latest - stable
 		}
 		if synced && params.GetHaveReloadConfig() {
@@ -395,11 +397,14 @@ func rewriteSyncdBlockNumber(number uint64) {
 	}
 }
 
-func updateSyncdBlockNumber(number uint64) {
-	//fmt.Printf("updateSyncdBlockNumber, number: %v, syncedNumber: %v, syncedCount: %v, syncdCount2Mongodb: %v\n", number, syncedNumber, syncedCount, syncdCount2Mongodb)
-	if number == syncedNumber + 1 {
-		syncedCount += 1
-		syncedNumber = number
+func updateSyncdBlockNumber(from, to uint64) {
+	if to < from {
+		log.Warn("UpdateSyncedBlockNumber failed", "from", from, "< to", to)
+		return
+	}
+	if from == syncedNumber + 1 {
+		syncedCount += to - from + 1
+		syncedNumber = to
 	}
 	if syncedCount >= syncdCount2Mongodb {
 		synced = true
@@ -421,7 +426,7 @@ func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
 			return header.Number.Uint64()
 		}
 		log.Warn("get latest block number failed", "err", err)
-		time.Sleep(scanner.rpcInterval)
+		scanner.getLatestClient()
 	}
 }
 
