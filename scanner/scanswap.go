@@ -217,7 +217,6 @@ func scanSwap(ctx *cli.Context) error {
 		"timeout", scanner.processBlockTimeout,
 	)
 
-	scanner.initClient()
 	scanner.getLatestClient()
 
 	bcConfig := params.GetBlockChainConfig()
@@ -284,6 +283,8 @@ func (scanner *ethSwapScanner) run() {
 
 	go AdjustGatewayOrder()
 	go scanner.initGetlogs()
+
+	defer scanner.closeScanner()
 
 	scanner.processBlockTimers = make([]*time.Timer, scanner.jobCount+1)
 	for i := 0; i < len(scanner.processBlockTimers); i++ {
@@ -1279,6 +1280,20 @@ func (scanner *ethSwapScanner) loopSwapPendingAfterPeriod() {
 		}
 		offset += 5
 		time.Sleep(1 * time.Second)
+	}
+}
+
+func (scanner *ethSwapScanner) getLatestClient() {
+	scanner.closeScanner()
+	AdjustGatewayOrder()
+	gateway := params.GetGatewayConfig()
+	scanner.gateway = gateway.APIAddress[0]
+	scanner.initClient()
+}
+
+func (scanner *ethSwapScanner) closeScanner() {
+	if scanner.client != nil {
+		scanner.client.Close()
 	}
 }
 

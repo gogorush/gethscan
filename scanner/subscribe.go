@@ -84,12 +84,12 @@ func (scanner *ethSwapScanner) subscribe() {
 }
 
 func (scanner *ethSwapScanner) LoopSubscribe(ctx context.Context, fq ethereum.FilterQuery, ch chan types.Log) ethereum.Subscription {
-        for {
+        for i := 0; ; i++ {
                 sub, err := scanner.client.SubscribeFilterLogs(ctx, fq, ch)
                 if err == nil {
                         return sub
                 }
-                log.Info("Subscribe logs failed, retry in 1 second", "error", err)
+                log.Warn("LoopSubscribe", "block from", fq.FromBlock, "to", fq.ToBlock, "error", err)
                 time.Sleep(time.Second * 1)
         }
 }
@@ -285,8 +285,11 @@ func (scanner *ethSwapScanner) filterLogs(from, to uint64, fq ethereum.FilterQue
                         //log.Info("filterLogs success", "block", height)
                         return
                 }
-                log.Warn("filterLogs retry in 200 millisecond", "error", err, "block from", from, "to", to)
-                time.Sleep(200 * time.Millisecond)
+                log.Warn("filterLogs", "error", err, "block from", from, "to", to, "try", i)
+		if i >= 2 {
+			scanner.getLatestClient()
+		}
         }
         log.Warn("filterLogs failed", "block from", from, "to", to)
 }
+

@@ -12,6 +12,10 @@ StableHeight = 18
 ScanBackHeight = 100 # block number in 1.5h
 SyncNumber = 100
 
+# gateway
+[Gateway]
+APIAddress = ["http://127.0.0.1:20920"]
+
 [[Tokens]]
 TxType = "swapin"
 PairID = "eth"
