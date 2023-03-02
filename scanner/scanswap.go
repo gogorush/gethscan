@@ -121,6 +121,7 @@ const (
 	swapIsClosedResult             = "swap is closed"
 	swapTradeNotSupport            = "swap trade not support"
 	txWithWrongContract            = "tx with wrong contract"
+	txWithContractNotSupport       = "app does not support fallback"
 	wrongBindAddress               = "wrong bind address"
 )
 
@@ -788,7 +789,7 @@ func addMongodbSwapPendingPost(swap *swapPost) {
 func (scanner *ethSwapScanner) repostCachedSwaps() {
 	for {
 		scanner.cachedSwapPosts.Do(func(p interface{}) bool {
-			ret, _ := scanner.repostSwap(p.(*swapPost))
+			ret, _, _ := scanner.repostSwap(p.(*swapPost))
 			return ret
 		})
 		time.Sleep(10 * time.Second)
@@ -910,27 +911,31 @@ func checkRouterStatus(status string, args interface{}) error {
 
 // repostRegisterSwap
 // return: bool - true:success / false:fail
-//         bool - true:repost / false:delete
-func (scanner *ethSwapScanner) repostSwap(swap *swapPost) (bool, bool) {
+//         bool - true:repost
+//         bool - true:delete
+func (scanner *ethSwapScanner) repostSwap(swap *swapPost) (bool, bool, bool) {
 	for i := 0; i < scanner.rpcRetryCount; i++ {
 		err := rpcPost(swap)
 		if err == nil {
-			return true, false
+			return true, false, false
 		}
 		switch {
 		case strings.Contains(err.Error(), txWithWrongContract):
 			log.Warn("repostRegisterSwap after a period of time", "err", err, "swap", swap)
-			return false, true
+			return false, true, false
+		case strings.Contains(err.Error(), txWithContractNotSupport):
+			log.Warn("repostRegisterSwap delete", "err", err, "swap", swap)
+			return false, false, true
 		case strings.Contains(err.Error(), rpcQueryErrKeywords):
 		case strings.Contains(err.Error(), httpTimeoutKeywords):
 		case strings.Contains(err.Error(), errConnectionRefused):
 		case strings.Contains(err.Error(), errMaximumRequestLimit):
 		default:
-			return false, false
+			return false, false, false
 		}
 		time.Sleep(scanner.rpcInterval)
 	}
-	return false, false
+	return false, false, false
 }
 
 func (scanner *ethSwapScanner) ignoreType(txType string) bool {
@@ -1191,33 +1196,7 @@ func (scanner *ethSwapScanner) loopSwapPending() {
                        continue
                }
                log.Info("loopSwapPending", "swap", sp, "len", lenPending)
-               for i, swap := range sp {
-                       log.Info("loopSwapPending", "swap", swap, "index", i)
-                       sp := swapPost{}
-                       sp.txid = swap.Txid
-                       sp.pairID = swap.PairID
-                       sp.rpcMethod = swap.RpcMethod
-                       sp.swapServer = swap.SwapServer
-			sp.chainID = swap.ChainID
-			sp.logIndex = swap.LogIndex
-			sp.chain = swap.Chain
-                       ok, ap := scanner.repostSwap(&sp)
-                       if ok == true {
-                               mongodb.UpdateSwapPending(swap)
-                       } else {
-				if ap == true {
-					mongodb.RemoveSwapPending(swap)
-					mongodb.AddSwapPendingAfterPeriod(swap, false)
-				} else {
-					r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Id))
-					if err != nil || (err == nil && r.Status != uint64(1)) {
-						log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Id)
-						mongodb.RemoveSwapPending(swap)
-						mongodb.AddSwapDeleted(swap, false)
-					}
-				}
-                       }
-               }
+		scanner.loopSwapPendingRegister(sp)
 		offset += 10
 		if lenPending < 10 {
 			offset = 0
@@ -1225,6 +1204,39 @@ func (scanner *ethSwapScanner) loopSwapPending() {
 		}
                time.Sleep(1 * time.Second)
        }
+}
+
+func (scanner *ethSwapScanner) loopSwapPendingRegister(sp []*mongodb.MgoSwap) {
+	for i, swap := range sp {
+		log.Info("loopSwapPending", "swap", swap, "index", i)
+		sp := swapPost{}
+		sp.txid = swap.Txid
+		sp.pairID = swap.PairID
+		sp.rpcMethod = swap.RpcMethod
+		sp.swapServer = swap.SwapServer
+		sp.chainID = swap.ChainID
+		sp.logIndex = swap.LogIndex
+		sp.chain = swap.Chain
+		ok, ap, d := scanner.repostSwap(&sp)
+		if ok == true {
+			mongodb.UpdateSwapPending(swap)
+		} else {
+			if ap == true {
+				mongodb.RemoveSwapPending(swap)
+				mongodb.AddSwapPendingAfterPeriod(swap, false)
+			} else if d == true {
+				mongodb.RemoveSwapPending(swap)
+				mongodb.AddSwapDeleted(swap, false)
+			} else {
+				r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Id))
+				if err != nil || (err == nil && r.Status != uint64(1)) {
+					log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Id)
+					mongodb.RemoveSwapPending(swap)
+					mongodb.AddSwapDeleted(swap, false)
+				}
+			}
+		}
+	}
 }
 
 func (scanner *ethSwapScanner) loopSwapPendingAP() {
@@ -1264,7 +1276,7 @@ func (scanner *ethSwapScanner) loopSwapPendingAfterPeriod() {
 			sp.chainID = swap.ChainID
 			sp.logIndex = swap.LogIndex
 			sp.chain = swap.Chain
-			ok, _ := scanner.repostSwap(&sp)
+			ok, _, _ := scanner.repostSwap(&sp)
 			if ok == true {
 				mongodb.UpdateSwapPendingAfterPeriod(swap)
 			} else {
