@@ -191,7 +191,8 @@ func (scanner *ethSwapScanner) loopFilterChain() {
                                 log.Debug("filterLogsRouterChan", "txhash", txhash, "key not config", key)
                                 continue
                         }
-                        scanner.postRouterSwap(txhash, logIndex, token)
+			tochainid := getToChainid(&rlog)
+                        scanner.postRouterSwap(txhash, tochainid, logIndex, token)
 
                 case rlog := <-filterLogsRouterNFTChan:
                         txhash := rlog.TxHash.String()
@@ -203,7 +204,8 @@ func (scanner *ethSwapScanner) loopFilterChain() {
                                 log.Debug("filterLogsRouterNFTChan", "txhash", txhash, "key not config", key)
                                 continue
                         }
-                        scanner.postRouterSwap(txhash, logIndex, token)
+			tochainid := getToChainid(&rlog)
+                        scanner.postRouterSwap(txhash, tochainid, logIndex, token)
 
                 case rlog := <-filterLogsRouterAnycallChan:
                         txhash := rlog.TxHash.String()
@@ -215,7 +217,8 @@ func (scanner *ethSwapScanner) loopFilterChain() {
                                 log.Debug("filterLogsRouterAnycallChan", "txhash", txhash, "key not config", key)
                                 continue
                         }
-                        scanner.postRouterSwap(txhash, logIndex, token)
+			tochainid := getToChainid(&rlog)
+                        scanner.postRouterSwap(txhash, tochainid, logIndex, token)
                 }
         }
 }
