@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"io/ioutil"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/anyswap/CrossChain-Bridge/cmd/utils"
@@ -234,7 +233,8 @@ func scanSwap(ctx *cli.Context) error {
 	if mongodbEnable {
 		InitMongodb()
 		if ctx.Bool(InitSyncdBlockNumberFlag.Name) {
-			lb := scanner.loopGetLatestBlockNumber() - 10
+			lb, _ := scanner.loopGetLatestBlockNumber()
+			lb -= 10
 			err := mongodb.InitSyncedBlockNumber(chain, lb)
 			fmt.Printf("InitSyncedBlockNumber, err: %v, number: %v\n", err, lb)
 		}
@@ -243,7 +243,8 @@ func scanSwap(ctx *cli.Context) error {
 		syncedCount = 0
 		syncedNumber = getSyncdBlockNumber() - 10
 	} else {
-		syncedNumber = scanner.loopGetLatestBlockNumber() - 10
+		syncedNumber, _ = scanner.loopGetLatestBlockNumber()
+		syncedNumber -= 10
 	}
 
 	scanner.run()
@@ -294,7 +295,7 @@ func (scanner *ethSwapScanner) run() {
 
 	wend := scanner.endHeight
 	if wend == 0 {
-		wend = scanner.loopGetLatestBlockNumber()
+		wend, _ = scanner.loopGetLatestBlockNumber()
 		if uint64(startHeightArgument) > syncedNumber {
 			startHeightArgument = int64(syncedNumber)
 		}
@@ -310,7 +311,7 @@ func (scanner *ethSwapScanner) run() {
 		} else if startHeightArgument < 0 {
 			start = wend - uint64(-startHeightArgument)
 		}
-		scanner.doScanRangeJob(start, wend)
+		scanner.getTransactionsSafe(start, wend)
 		if scanner.endHeight == 0 && mongodbEnable {
 			rewriteSyncdBlockNumber(wend)
 		}
@@ -321,61 +322,20 @@ func (scanner *ethSwapScanner) run() {
 	select {}
 }
 
-func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
-	log.Info("start scan range job", "start", start, "end", end, "jobs", scanner.jobCount)
-	if scanner.jobCount == 0 {
-		log.Fatal("zero count jobs specified")
-	}
-	if start >= end {
-		log.Fatalf("wrong scan range [%v, %v)", start, end)
-	}
-	jobs := scanner.jobCount
-	count := end - start
-	step := count / jobs
-	if step == 0 {
-		jobs = 1
-		step = count
-	}
-	wg := new(sync.WaitGroup)
-	for i := uint64(0); i < jobs; i++ {
-		from := start + i*step
-		to := start + (i+1)*step
-		if i+1 == jobs {
-			to = end
-		}
-		wg.Add(1)
-		go scanner.scanRange(i+1, from, to, wg)
-	}
-	//if scanner.endHeight != 0 {
-		wg.Wait()
-	//}
-}
-
-func (scanner *ethSwapScanner) scanRange(job, from, to uint64, wg *sync.WaitGroup) {
-	if wg != nil {
-		defer wg.Done()
-	}
-	log.Info(fmt.Sprintf("[%v] scan range", job), "from", from, "to", to)
-
-	for h := from; h < to; h++ {
-		scanner.scanBlock(job, h, false)
-	}
-
-	log.Info(fmt.Sprintf("[%v] scan range finish", job), "from", from, "to", to)
-}
-
 func (scanner *ethSwapScanner) scanLoop(from uint64) {
 	stable := scanner.stableHeight
 	scanBack := scanner.scanBackHeight
 	for {
-		latest := scanner.loopGetLatestBlockNumber()
+		latest, err := scanner.loopGetLatestBlockNumber()
 		log.Info("scanLoop", "latest", latest, "stable", stable, "from", from)
-		scanner.doScanRangeJob(from, latest)
-		if mongodbEnable {
-			updateSyncdBlockNumber(from, latest)
-		}
-		if from < latest - stable {
-			from = latest - stable
+		err2 := scanner.getTransactionsSafe(from, latest)
+		if err == nil && err2 == nil {
+			if mongodbEnable {
+				updateSyncdBlockNumber(from, latest)
+			}
+			if from < latest - stable {
+				from = latest - stable
+			}
 		}
 		if synced && params.GetHaveReloadConfig() {
 			synced = false
@@ -420,18 +380,6 @@ func updateSyncdBlockNumber(from, to uint64) {
 	}
 }
 
-func (scanner *ethSwapScanner) loopGetLatestBlockNumber() uint64 {
-	for { // retry until success
-		header, err := scanner.client.HeaderByNumber(scanner.ctx, nil)
-		if err == nil {
-			log.Info("get latest block number success", "height", header.Number)
-			return header.Number.Uint64()
-		}
-		log.Warn("get latest block number failed", "err", err)
-		scanner.getLatestClient()
-	}
-}
-
 func (scanner *ethSwapScanner) loopGetTxReceipt(txHash common.Hash) (receipt *types.Receipt, err error) {
 	for i := 0; i < 5; i++ { // with retry
 		receipt, err = scanner.client.TransactionReceipt(scanner.ctx, txHash)
@@ -458,148 +406,6 @@ func (scanner *ethSwapScanner) loopGetBlock(height uint64) (block *types.Block, 
 		time.Sleep(scanner.rpcInterval)
 	}
 	return nil, err
-}
-
-func (scanner *ethSwapScanner) scanBlock(job, height uint64, cache bool) {
-	block, err := scanner.loopGetBlock(height)
-	if err != nil {
-		return
-	}
-	blockHash := block.Hash().Hex()
-	if cache && cachedBlocks.isScanned(blockHash) {
-		return
-	}
-	log.Info(fmt.Sprintf("[%v] scan block %v", job, height), "hash", blockHash, "txs", len(block.Transactions()))
-
-	go scanner.getLogs(height, height, false)
-
-	scanner.processBlockTimers[job].Reset(scanner.processBlockTimeout)
-SCANTXS:
-	for i, tx := range block.Transactions() {
-		select {
-		case <-scanner.processBlockTimers[job].C:
-			log.Warn(fmt.Sprintf("[%v] scan block %v timeout", job, height), "hash", blockHash, "txs", len(block.Transactions()))
-			break SCANTXS
-		default:
-			log.Debug(fmt.Sprintf("[%v] scan tx in block %v index %v", job, height, i), "tx", tx.Hash().Hex())
-			scanner.scanTransaction(height, uint64(i), tx)
-		}
-	}
-	if cache {
-		cachedBlocks.addBlock(blockHash)
-	}
-}
-
-func (scanner *ethSwapScanner) scanTransaction(height, index uint64, tx *types.Transaction) {
-	if tx.To() == nil {
-		return
-	}
-
-	txHash := tx.Hash().Hex()
-
-	for _, tokenCfg := range params.GetScanConfig().Tokens {
-		verifyErr := scanner.verifyTransaction(height, index, tx, tokenCfg)
-		if verifyErr != nil {
-			log.Debug("verify tx failed", "txHash", txHash, "err", verifyErr)
-		}
-	}
-}
-
-func (scanner *ethSwapScanner) checkTxToAddress(tx *types.Transaction, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
-	isAcceptToAddr = scanner.scanReceipt // init
-	needReceipt := scanner.scanReceipt
-	txtoAddress := tx.To().String()
-
-	var cmpTxTo string
-	if tokenCfg.IsRouterSwapAll() {
-		cmpTxTo = tokenCfg.RouterContract
-		needReceipt = true
-	} else if tokenCfg.IsNativeToken() {
-		cmpTxTo = tokenCfg.DepositAddress
-	} else {
-		cmpTxTo = tokenCfg.TokenAddress
-		if tokenCfg.CallByContract != "" {
-			cmpTxTo = tokenCfg.CallByContract
-			needReceipt = true
-		}
-	}
-
-	if strings.EqualFold(txtoAddress, cmpTxTo) {
-		isAcceptToAddr = true
-	} else if !tokenCfg.IsNativeToken() {
-		for _, whiteAddr := range tokenCfg.Whitelist {
-			if strings.EqualFold(txtoAddress, whiteAddr) {
-				isAcceptToAddr = true
-				needReceipt = true
-				break
-			}
-		}
-	}
-
-	if !isAcceptToAddr {
-		return nil, false
-	}
-
-	if needReceipt {
-		r, err := scanner.loopGetTxReceipt(tx.Hash())
-		if err != nil {
-			log.Warn("get tx receipt error", "txHash", tx.Hash().Hex(), "err", err)
-			return nil, false
-		}
-		receipt = r
-	}
-
-	return receipt, true
-}
-
-func (scanner *ethSwapScanner) verifyTransaction(height, index uint64, tx *types.Transaction, tokenCfg *params.TokenConfig) (verifyErr error) {
-	receipt, isAcceptToAddr := scanner.checkTxToAddress(tx, tokenCfg)
-	if !isAcceptToAddr {
-		log.Debug("verifyTransaction !isAcceptToAddr return", "txHash", tx.Hash().Hex())
-		return nil
-	}
-
-	txHash := tx.Hash().Hex()
-
-	switch {
-	// router swap
-	case tokenCfg.IsRouterSwapAll():
-		log.Debug("verifyTransaction IsRouterSwapAll", "txHash", txHash)
-		scanner.verifyAndPostRouterSwapTx(tx, receipt, tokenCfg)
-		return nil
-
-	// bridge swapin
-	case tokenCfg.DepositAddress != "":
-		if tokenCfg.IsNativeToken() {
-			scanner.postBridgeSwap(txHash, tokenCfg)
-			return nil
-		}
-
-		verifyErr = scanner.verifyErc20SwapinTx(tx, receipt, tokenCfg)
-		// swapin my have multiple deposit addresses for different bridges
-		if errors.Is(verifyErr, tokens.ErrTxWithWrongReceiver) {
-			return nil
-		}
-
-	// bridge swapout
-	default:
-		if scanner.scanReceipt {
-			verifyErr = scanner.parseSwapoutTxLogs(receipt.Logs, tokenCfg)
-		} else {
-			verifyErr = scanner.verifySwapoutTx(tx, receipt, tokenCfg)
-		}
-	}
-
-	if verifyErr == nil {
-		if chainIsRSK(chain) {
-			hash, err := scanner.getTxHash4RSK(height, index)
-			if err == nil {
-				txHash = hash
-			}
-		}
-		scanner.postBridgeSwap(txHash, tokenCfg)
-	}
-	return verifyErr
 }
 
 func chainIsRSK(chain string) bool {
@@ -995,66 +801,6 @@ func (scanner *ethSwapScanner) verifySwapoutTx(tx *types.Transaction, receipt *t
 	return err
 }
 
-func (scanner *ethSwapScanner) verifyAndPostRouterSwapTx(tx *types.Transaction, receipt *types.Receipt, tokenCfg *params.TokenConfig) {
-	if scanner.ignoreType(tokenCfg.TxType) {
-		scanner.postRouterSwap(tx.Hash().Hex(), "0", 0, tokenCfg)
-		return
-	}
-	if receipt == nil {
-		log.Debug("verifyAndPostRouterSwapTx receipt is nil", "txhash", tx.Hash().Hex())
-		return
-	}
-	for i := 0; i < len(receipt.Logs); i++ {
-		rlog := receipt.Logs[i]
-		if rlog.Removed {
-			log.Debug("verifyAndPostRouterSwapTx removed", "log(i)", i, "txhash", tx.Hash().Hex())
-			continue
-		}
-		if !strings.EqualFold(rlog.Address.String(), tokenCfg.RouterContract) {
-			log.Debug("verifyAndPostRouterSwapTx", "address", rlog.Address.String(), "txhash", tx.Hash().Hex())
-			continue
-		}
-		logTopic := rlog.Topics[0].Bytes()
-		switch {
-		case tokenCfg.IsRouterERC20Swap():
-			switch {
-			case bytes.Equal(logTopic, routerAnySwapOutTopic):
-			case bytes.Equal(logTopic, routerAnySwapOutTopic2):
-			case bytes.Equal(logTopic, routerAnySwapTradeTokensForTokensTopic):
-			case bytes.Equal(logTopic, routerAnySwapTradeTokensForNativeTopic):
-			case bytes.Equal(logTopic, routerCrossDexTopic):
-			case bytes.Equal(logTopic, routerAnySwapOutV7Topic):
-			case bytes.Equal(logTopic, routerAnySwapOutAndCallV7Topic):
-				log.Debug("verifyAndPostRouterSwapTx IsRouterERC20Swap", "logTopic", logTopic)
-			default:
-				continue
-			}
-		case tokenCfg.IsRouterNFTSwap():
-			switch {
-			case bytes.Equal(logTopic, routerNFT721SwapOutTopic):
-			case bytes.Equal(logTopic, routerNFT1155SwapOutTopic):
-			case bytes.Equal(logTopic, routerNFT1155SwapOutBatchTopic):
-				log.Debug("verifyAndPostRouterSwapTx IsRouterNFTSwap", "logTopic", logTopic)
-			default:
-				continue
-			}
-		case tokenCfg.IsRouterAnycallSwap():
-			switch {
-			case bytes.Equal(logTopic, routerAnycallTopic):
-			case bytes.Equal(logTopic, routerAnycallTransferSwapOutTopic):
-			case bytes.Equal(logTopic, routerAnycallV6Topic):
-			case bytes.Equal(logTopic, routerAnycallV7Topic):
-			case bytes.Equal(logTopic, routerAnycallV7Topic2):
-				log.Debug("verifyAndPostRouterSwapTx IsRouterAnycallSwap", "logTopic", logTopic)
-			default:
-				continue
-			}
-		}
-		tochainid := getToChainid(rlog)
-		scanner.postRouterSwap(tx.Hash().Hex(), tochainid, i, tokenCfg)
-	}
-}
-
 func getToChainid(rlog *types.Log) string {
 	logTopics := rlog.Topics
 	if len(logTopics) != 4 {
@@ -1296,11 +1042,9 @@ func (scanner *ethSwapScanner) loopSwapPendingAfterPeriod() {
 }
 
 func (scanner *ethSwapScanner) getLatestClient() {
-	scanner.closeScanner()
 	AdjustGatewayOrder()
 	gateway := params.GetGatewayConfig()
 	scanner.gateway = gateway.APIAddress[0]
-	scanner.initClient()
 }
 
 func (scanner *ethSwapScanner) closeScanner() {
