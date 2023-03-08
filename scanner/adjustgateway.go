@@ -35,6 +35,10 @@ func AdjustGatewayOrder() {
 	length := len(gateway.APIAddress)
 	for i := length; i > 0; i-- { // query in reverse order
 		apiAddress := gateway.APIAddress[i-1]
+		if length > 1 && i - 1 == 0 { // remove current
+			weightedAPIs = weightedAPIs.Add(apiAddress, 0)
+			continue
+		}
 		height, _ := GetLatestBlockNumberOf(apiAddress)
 		weightedAPIs = weightedAPIs.Add(apiAddress, height)
 		if height > maxHeight {
