@@ -522,7 +522,8 @@ func (scanner *ethSwapScanner) scanTransaction(tx *types.Transaction) {
 func (scanner *ethSwapScanner) checkTxToAddressXRP(txHash string, tokenCfg *params.TokenConfig) (receipt *types.Receipt, isAcceptToAddr bool) {
 	tx, err := GetTx_XRP(scanner.gateway, txHash)
 	if err != nil {
-		return
+		//log.Warn("GetTx_XRP", "txHash", txHash, "err", err)
+		return nil, false
 	}
 	needReceipt := scanner.scanReceipt
 	txtoAddress := tx.Destination

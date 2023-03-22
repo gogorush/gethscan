@@ -11,6 +11,7 @@ import (
 	"strings"
 	//"unsafe"
 
+	"github.com/anyswap/CrossChain-Bridge/log"
 	//"github.com/davecgh/go-spew/spew"
 )
 
@@ -125,12 +126,12 @@ func GetTx_XRP(url, txhash string) (*txResultConfig, error) {
 	//fmt.Printf("getBalance4XRP, url: %v, address: %v\n", url, address)
 	data := "{\"method\":\"tx\",\"params\":[{\"transaction\":\""+txhash+"\",\"binary\":false}]}"
 	basket := txConfig{}
-	for i := 0; i < 1; i++ {
+	for i := 0; ; i++ {
 		reader := bytes.NewReader([]byte(data))
 		resp, err := http.Post(url, "application/json", reader)
 		if err != nil {
-			fmt.Println(err.Error())
-			return nil, err
+			log.Warn("GetTx_XRP post", "txhash", txhash, "status", basket.Result.Status, "try", i, "err", err)
+			continue
 		}
 		defer resp.Body.Close()
 
@@ -139,17 +140,18 @@ func GetTx_XRP(url, txhash string) (*txResultConfig, error) {
 		//spew.Printf("body: %#v, string: %v\n", body, string(body))
 
 		if err != nil {
-			fmt.Println(err.Error())
-			return nil, err
+			log.Warn("GetTx_XRP body", "txhash", txhash, "status", basket.Result.Status, "try", i, "err", err)
+			continue
 		}
 		err = json.Unmarshal(body, &basket)
 		if err != nil {
-			fmt.Println(err)
-			return nil, err
+			return nil, errors.New("GetBlockTxs_XRP null")
 		}
 		//fmt.Printf("%v basket.Result: %v\n", i, basket.Result)
 		if basket.Result.Status == "success" {
 			return &basket.Result, nil
+		} else {
+			return nil, errors.New("GetBlockTxs_XRP status not success")
 		}
 	}
 	return nil, errors.New("GetBlockTxs_XRP null")
