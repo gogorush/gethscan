@@ -3,12 +3,12 @@ package scanner
 import (
 	"bytes"
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"net/http"
-	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
@@ -23,9 +23,9 @@ import (
 	"github.com/jowenshaw/gethclient/common"
 	"github.com/jowenshaw/gethclient/types"
 
+	"github.com/weijun-sh/gethscan/mongodb"
 	"github.com/weijun-sh/gethscan/params"
 	"github.com/weijun-sh/gethscan/tools"
-	"github.com/weijun-sh/gethscan/mongodb"
 )
 
 var (
@@ -94,18 +94,18 @@ scan cross chain swaps
 	logAnycallSwapOutTopic         = common.FromHex("0x9ca1de98ebed0a9c38ace93d3ca529edacbbe199cf1b6f0f416ae9b724d4a81c")
 	logAnycallTransferSwapOutTopic = common.FromHex("0xcaac11c45e5fdb5c513e20ac229a3f9f99143580b5eb08d0fecbdd5ae8c81ef5")
 
-	logAnycallV6SwapOutTopic       = common.FromHex("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
+	logAnycallV6SwapOutTopic = common.FromHex("0xa17aef042e1a5dd2b8e68f0d0d92f9a6a0b35dc25be1d12c0cb3135bfd8951c9")
 )
 
 const (
-	postSwapSuccessResult   = "success"
-	bridgeSwapExistKeywords = "mgoError: Item is duplicate"
-	routerSwapExistResult   = "already registered"
-	routerSwapExistResultTmp   = "alreday registered"
-	httpTimeoutKeywords     = "Client.Timeout exceeded while awaiting headers"
-	errConnectionRefused    = "connect: connection refused"
-	errMaximumRequestLimit  = "You have reached maximum request limit"
-	rpcQueryErrKeywords     = "rpc query error"
+	postSwapSuccessResult          = "success"
+	bridgeSwapExistKeywords        = "mgoError: Item is duplicate"
+	routerSwapExistResult          = "already registered"
+	routerSwapExistResultTmp       = "alreday registered"
+	httpTimeoutKeywords            = "Client.Timeout exceeded while awaiting headers"
+	errConnectionRefused           = "connect: connection refused"
+	errMaximumRequestLimit         = "You have reached maximum request limit"
+	rpcQueryErrKeywords            = "rpc query error"
 	errDepositLogNotFountorRemoved = "return error: json-rpc error -32099, verify swap failed! deposit log not found or removed"
 	swapIsClosedResult             = "swap is closed"
 	swapTradeNotSupport            = "swap trade not support"
@@ -116,12 +116,12 @@ const (
 var startHeightArgument int64
 
 var (
-       chain         string
-       mongodbEnable bool = true
-	syncedNumber uint64
-	syncedCount uint64
+	chain              string
+	mongodbEnable      bool = true
+	syncedNumber       uint64
+	syncedCount        uint64
 	syncdCount2Mongodb uint64 = 100
-	synced bool = false
+	synced             bool   = false
 
 	configFile chan bool = make(chan bool)
 )
@@ -132,10 +132,10 @@ type ethSwapScanner struct {
 
 	chainID *big.Int
 
-	endHeight    uint64
-	stableHeight uint64
+	endHeight      uint64
+	stableHeight   uint64
 	scanBackHeight uint64
-	jobCount     uint64
+	jobCount       uint64
 
 	processBlockTimeout time.Duration
 	processBlockTimers  []*time.Timer
@@ -165,13 +165,13 @@ type swapPost struct {
 }
 
 func WatchAndReloadScanConfig(cf chan bool) {
-        go params.WatchAndReloadScanConfig(cf)
-        for {
-                select {
-                case <-cf:
-                        initFilerLogs()
-                }
-        }
+	go params.WatchAndReloadScanConfig(cf)
+	for {
+		select {
+		case <-cf:
+			initFilerLogs()
+		}
+	}
 }
 
 func scanSwap(ctx *cli.Context) error {
@@ -205,14 +205,14 @@ func scanSwap(ctx *cli.Context) error {
 	scanner.initClient()
 
 	bcConfig := params.GetBlockChainConfig()
-       chain = bcConfig.Chain
+	chain = bcConfig.Chain
 	if bcConfig.SyncNumber > 0 {
 		syncdCount2Mongodb = bcConfig.SyncNumber
 	}
 	scanner.stableHeight = bcConfig.StableHeight
 	scanner.scanBackHeight = bcConfig.ScanBackHeight
 
-       //mongo
+	//mongo
 	mgoConfig := params.GetMongodbConfig()
 	mongodbEnable = mgoConfig.Enable
 	if mongodbEnable {
@@ -327,7 +327,7 @@ func (scanner *ethSwapScanner) doScanRangeJob(start, end uint64) {
 		go scanner.scanRange(i+1, from, to, wg)
 	}
 	//if scanner.endHeight != 0 {
-		wg.Wait()
+	wg.Wait()
 	//}
 }
 
@@ -378,7 +378,7 @@ func rewriteSyncdBlockNumber(number uint64) {
 
 func updateSyncdBlockNumber(number uint64) {
 	//fmt.Printf("updateSyncdBlockNumber, number: %v, syncedNumber: %v, syncedCount: %v, syncdCount2Mongodb: %v\n", number, syncedNumber, syncedCount, syncdCount2Mongodb)
-	if number == syncedNumber + 1 {
+	if number == syncedNumber+1 {
 		syncedCount += 1
 		syncedNumber = number
 	}
@@ -580,8 +580,8 @@ func chainIsRSK(chain string) bool {
 }
 
 type result_getTransactionByBlockNumberAndIndex struct {
-	Result txRSK `bson:"result"`
-	Error interface{} `bson:"error"`
+	Result txRSK       `bson:"result"`
+	Error  interface{} `bson:"error"`
 }
 
 type txRSK struct {
@@ -589,52 +589,52 @@ type txRSK struct {
 }
 
 func (scanner *ethSwapScanner) getTxHash4RSK(height, index uint64) (string, error) {
-       //fmt.Printf("getBalance4ETH, url: %v, address: %v\n", url, address)
-        data := make(map[string]interface{})
-        data["method"] = "eth_getTransactionByBlockNumberAndIndex"
-        data["params"] = []string{"0x400a47", "0x3"}
-        data["id"] = "1"
-        data["jsonrpc"] = "2.0"
-        bytesData, err := json.Marshal(data)
-        if err != nil {
-                fmt.Println(err.Error())
-                return "", err
-        }
-        basket := result_getTransactionByBlockNumberAndIndex{}
+	//fmt.Printf("getBalance4ETH, url: %v, address: %v\n", url, address)
+	data := make(map[string]interface{})
+	data["method"] = "eth_getTransactionByBlockNumberAndIndex"
+	data["params"] = []string{"0x400a47", "0x3"}
+	data["id"] = "1"
+	data["jsonrpc"] = "2.0"
+	bytesData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println(err.Error())
+		return "", err
+	}
+	basket := result_getTransactionByBlockNumberAndIndex{}
 	var i int
-        for i = 0; i < 30; i++ {
-                reader := bytes.NewReader(bytesData)
-                resp, err := http.Post(scanner.gateway, "application/json", reader)
-                if err != nil {
-                        fmt.Println(err.Error())
-                        return "", err
-                }
-                defer resp.Body.Close()
+	for i = 0; i < 30; i++ {
+		reader := bytes.NewReader(bytesData)
+		resp, err := http.Post(scanner.gateway, "application/json", reader)
+		if err != nil {
+			fmt.Println(err.Error())
+			return "", err
+		}
+		defer resp.Body.Close()
 
-                //fmt.Printf("resp: %#v, resp.Body: %#v\n", resp, resp.Body)
-                body, err := ioutil.ReadAll(resp.Body)
-                //fmt.Printf("body: %v, string: %v\n", body, string(body))
+		//fmt.Printf("resp: %#v, resp.Body: %#v\n", resp, resp.Body)
+		body, err := ioutil.ReadAll(resp.Body)
+		//fmt.Printf("body: %v, string: %v\n", body, string(body))
 
-                if err != nil {
-                        fmt.Println(err.Error())
-                        return "", err
-                }
+		if err != nil {
+			fmt.Println(err.Error())
+			return "", err
+		}
 
-                err = json.Unmarshal(body, &basket)
-                if err != nil {
-                        fmt.Println(err)
-                        return "", err
-                }
+		err = json.Unmarshal(body, &basket)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
 		//fmt.Printf("%v basket.Result: %v, error: %v\n", i, basket.Result, basket.Error)
-                if basket.Error != nil {
-                        //fmt.Printf("* Error *\n\n")
-                        basket.Error = nil
-                        continue
-                } else {
-                        break
-                }
+		if basket.Error != nil {
+			//fmt.Printf("* Error *\n\n")
+			basket.Error = nil
+			continue
+		} else {
+			break
+		}
 		break
-        }
+	}
 	if i >= 30 {
 		log.Warn("getTxHash4RSK get txHash failed", "height", height, "index", index)
 		return "", errors.New("get tx failed")
@@ -700,47 +700,47 @@ func (scanner *ethSwapScanner) postSwapPost(swap *swapPost) {
 		log.Warn("cache swap", "swap", swap)
 		scanner.cachedSwapPosts.Add(swap)
 	}
-       if needPending {
-               if mongodbEnable {
-                       //insert mongo post pending
-                       addMongodbSwapPendingPost(swap)
-               }
-       }
-       if !needCached && !needPending {
-               if mongodbEnable {
-                       //insert mongo post
-                       addMongodbSwapPost(swap)
-               }
-       }
+	if needPending {
+		if mongodbEnable {
+			//insert mongo post pending
+			addMongodbSwapPendingPost(swap)
+		}
+	}
+	if !needCached && !needPending {
+		if mongodbEnable {
+			//insert mongo post
+			addMongodbSwapPost(swap)
+		}
+	}
 }
 
 func addMongodbSwapPost(swap *swapPost) {
-       ms := &mongodb.MgoSwap{
-               Id:         swap.txid,
-               PairID:     swap.pairID,
-               RpcMethod:  swap.rpcMethod,
-               SwapServer: swap.swapServer,
-                ChainID:    swap.chainID,
-                LogIndex:   swap.logIndex,
-               Chain:      chain,
-               Timestamp:  uint64(time.Now().Unix()),
-       }
-       mongodb.AddSwap(ms, false)
+	ms := &mongodb.MgoSwap{
+		Id:         swap.txid,
+		PairID:     swap.pairID,
+		RpcMethod:  swap.rpcMethod,
+		SwapServer: swap.swapServer,
+		ChainID:    swap.chainID,
+		LogIndex:   swap.logIndex,
+		Chain:      chain,
+		Timestamp:  uint64(time.Now().Unix()),
+	}
+	mongodb.AddSwap(ms, false)
 }
 
 func addMongodbSwapPendingPost(swap *swapPost) {
-       ms := &mongodb.MgoSwap{
-               Id:         swap.txid,
-               PairID:     swap.pairID,
-               RpcMethod:  swap.rpcMethod,
-               SwapServer: swap.swapServer,
+	ms := &mongodb.MgoSwap{
+		Id:         swap.txid,
+		PairID:     swap.pairID,
+		RpcMethod:  swap.rpcMethod,
+		SwapServer: swap.swapServer,
 		ChainID:    swap.chainID,
 		LogIndex:   swap.logIndex,
-               Chain:      chain,
-               Timestamp:  uint64(time.Now().Unix()),
-       }
-       mongodb.AddSwapPending(ms, false)
- }
+		Chain:      chain,
+		Timestamp:  uint64(time.Now().Unix()),
+	}
+	mongodb.AddSwapPending(ms, false)
+}
 
 func (scanner *ethSwapScanner) repostCachedSwaps() {
 	for {
@@ -1088,50 +1088,50 @@ func (cache *cachedSacnnedBlocks) isScanned(blockHash string) bool {
 
 // InitMongodb init mongodb by config
 func InitMongodb() {
-       log.Info("InitMongodb")
-       dbConfig := params.GetMongodbConfig()
-       mongodb.MongoServerInit([]string{dbConfig.DBURL}, dbConfig.DBName, dbConfig.UserName, dbConfig.Password)
+	log.Info("InitMongodb")
+	dbConfig := params.GetMongodbConfig()
+	mongodb.MongoServerInit([]string{dbConfig.DBURL}, dbConfig.DBName, dbConfig.UserName, dbConfig.Password)
 }
 
 func (scanner *ethSwapScanner) loopSwapPending() {
-       log.Info("start SwapPending loop job")
+	log.Info("start SwapPending loop job")
 	offset := 0
-       for {
-               sp, err := mongodb.FindAllSwapPending(chain, offset, 10)
+	for {
+		sp, err := mongodb.FindAllSwapPending(chain, offset, 10)
 		lenPending := len(sp)
-               if err != nil || lenPending == 0 {
+		if err != nil || lenPending == 0 {
 			offset = 0
-                       time.Sleep(20 * time.Second)
-                       continue
-               }
-               log.Info("loopSwapPending", "swap", sp, "len", lenPending)
-               for i, swap := range sp {
-                       log.Info("loopSwapPending", "swap", swap, "index", i)
-                       sp := swapPost{}
-                       sp.txid = swap.Id
-                       sp.pairID = swap.PairID
-                       sp.rpcMethod = swap.RpcMethod
-                       sp.swapServer = swap.SwapServer
+			time.Sleep(20 * time.Second)
+			continue
+		}
+		log.Info("loopSwapPending", "swap", sp, "len", lenPending)
+		for i, swap := range sp {
+			log.Info("loopSwapPending", "swap", swap, "index", i)
+			sp := swapPost{}
+			sp.txid = swap.Id
+			sp.pairID = swap.PairID
+			sp.rpcMethod = swap.RpcMethod
+			sp.swapServer = swap.SwapServer
 			sp.chainID = swap.ChainID
 			sp.logIndex = swap.LogIndex
 			sp.chain = swap.Chain
-                       ok := scanner.repostSwap(&sp)
-                       if ok == true {
-                               mongodb.UpdateSwapPending(swap)
-                       } else {
-                               r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Id))
-                               if err != nil || (err == nil && r.Status != uint64(1)) {
-                                       log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Id)
-                                       mongodb.RemoveSwapPending(swap)
-                                       mongodb.AddSwapDeleted(swap, false)
-                               }
-                       }
-               }
+			ok := scanner.repostSwap(&sp)
+			if ok == true {
+				mongodb.UpdateSwapPending(swap)
+			} else {
+				r, err := scanner.loopGetTxReceipt(common.HexToHash(swap.Id))
+				if err != nil || (err == nil && r.Status != uint64(1)) {
+					log.Warn("loopSwapPending remove", "status", 0, "txHash", swap.Id)
+					mongodb.RemoveSwapPending(swap)
+					mongodb.AddSwapDeleted(swap, false)
+				}
+			}
+		}
 		offset += 10
 		if lenPending < 10 {
 			offset = 0
 			time.Sleep(10 * time.Second)
 		}
-               time.Sleep(1 * time.Second)
-       }
+		time.Sleep(1 * time.Second)
+	}
 }

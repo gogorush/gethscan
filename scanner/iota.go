@@ -11,15 +11,14 @@ import (
 	"strings"
 
 	"github.com/anyswap/CrossChain-Bridge/log"
-	"github.com/weijun-sh/gethscan/params"
 	iotago "github.com/iotaledger/iota.go/v2"
-
+	"github.com/weijun-sh/gethscan/params"
 	//"github.com/davecgh/go-spew/spew"
 )
 
 var (
 	messagesUrl = "api/v1/messages"
-	Index = "swapOut"
+	Index       = "swapOut"
 	//mpc   = "9fb648524b9747608791dbd76bacbebc2f7ac0e3ace10e896739a0a44190102f"
 	//mpc   = "atoi1qry7cd950wjuchaq3nup0ltvlh2ay24vmhmc3rw99udg822ux8uycq2x28h"
 )
@@ -36,49 +35,49 @@ type messagesConfig struct {
 }
 
 type messagesDataConfig struct {
-	Index string
+	Index      string
 	MaxResults uint64
-	Count uint64
+	Count      uint64
 	MessageIds []string
 }
 
 func (scanner *ethSwapScanner) getMessages_iota() ([]string, error) {
-        //fmt.Printf("getBalance4XRP, url: %v, address: %v\n", url, address)
-        basket := messagesConfig{}
+	//fmt.Printf("getBalance4XRP, url: %v, address: %v\n", url, address)
+	basket := messagesConfig{}
 	urlIndex := fmt.Sprintf("%v/%v?index=%x", scanner.gateway, messagesUrl, []byte(Index))
-        for i := 0; i < 1; i++ {
-                resp, err := http.Get(urlIndex)
-                if err != nil {
-                        fmt.Println(err.Error())
-                        return nil, err
-                }
-                defer resp.Body.Close()
+	for i := 0; i < 1; i++ {
+		resp, err := http.Get(urlIndex)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil, err
+		}
+		defer resp.Body.Close()
 
-                //spew.Printf("resp.Body: %#v\n", resp.Body)
-                body, err := ioutil.ReadAll(resp.Body)
-                //spew.Printf("body: %#v, string: %v\n", body, string(body))
+		//spew.Printf("resp.Body: %#v\n", resp.Body)
+		body, err := ioutil.ReadAll(resp.Body)
+		//spew.Printf("body: %#v, string: %v\n", body, string(body))
 
-                if err != nil {
-                        fmt.Println(err.Error())
-                        return nil, err
-                }
-                err = json.Unmarshal(body, &basket)
-                if err != nil {
-                        fmt.Println(err)
-                        return nil, err
-                }
-                //fmt.Printf("%v basket.Result: %v\n", i, basket.Result)
-                if basket.Data.Count > 0 {
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil, err
+		}
+		err = json.Unmarshal(body, &basket)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		//fmt.Printf("%v basket.Result: %v\n", i, basket.Result)
+		if basket.Data.Count > 0 {
 			log.Info("getMessages_iota", "count", basket.Data.Count)
-                        return basket.Data.MessageIds, nil
-                } else {
+			return basket.Data.MessageIds, nil
+		} else {
 			return nil, errors.New("getMessages_iota null")
 		}
-        }
-        return nil, errors.New("getMessages_iota null")
+	}
+	return nil, errors.New("getMessages_iota null")
 }
 
-func (scanner *ethSwapScanner) scanMessageId(messageId string) (bool) {
+func (scanner *ethSwapScanner) scanMessageId(messageId string) bool {
 	log.Info("scanMessageId", "messageId", messageId)
 	msgID, err := ConvertMessageID(messageId)
 	if err != nil {
@@ -111,7 +110,7 @@ func (scanner *ethSwapScanner) scanMessageId(messageId string) (bool) {
 	return ret
 }
 
-func  (scanner *ethSwapScanner) verifyMessage(messageId string, payloadRaw []byte, tokenCfg *params.TokenConfig) bool {
+func (scanner *ethSwapScanner) verifyMessage(messageId string, payloadRaw []byte, tokenCfg *params.TokenConfig) bool {
 	switch {
 	case tokenCfg.IsRouterSwapAll():
 		err := ParseMessagePayload(payloadRaw, tokenCfg)
@@ -253,4 +252,3 @@ func GetLatestBlockNumber(url string) (uint64, error) {
 		return uint64(nodeInfoResponse.ConfirmedMilestoneIndex), nil
 	}
 }
-
