@@ -67,3 +67,7 @@ OPTIONS:
    --jobs value              number of jobs (default: 4)
    --help, -h                show help (default: false)
 ```
+
+```
+./gethscan --log iota.log scanswap -c ./iota-test.toml --gateway https://api.lb-0.h.chrysalis-devnet.iota.cafe --start 5679792
+```
